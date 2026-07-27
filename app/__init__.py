@@ -54,9 +54,11 @@ def create_app(test_config=None):
     from . import purchase_orders
     app.register_blueprint(purchase_orders.bp)
 
-    # Auto-upgrade an existing database to the latest schema, if one exists.
-    if os.path.exists(app.config['DATABASE']):
-        with app.app_context():
+    # Initialize the database if it doesn't exist, otherwise migrate it.
+    with app.app_context():
+        if not os.path.exists(app.config['DATABASE']):
+            db.init_db()
+        else:
             db.migrate_db()
             db.seed_settings(db.get_db())
 
