@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Purchase Orders{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div id="live-content">
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Purchase Orders</h2>
+    <a class="btn no-print" href="{{ url_for('purchase_orders.new_order') }}">+ New purchase order</a>
+  </div>
+
+  {% if orders %}
+  <div style="display:flex; gap:0.5rem; margin-top:0.5rem; flex-wrap:wrap;">
+    <input type="text" id="po-search" placeholder="Search by supplier, #, or created by..." style="margin-top:0; flex:1; min-width:200px;">
+    <select id="po-status-filter" style="margin-top:0; width:auto;">
+      <option value="">All statuses</option>
+      <option value="draft">Draft</option>
+      <option value="ordered">Ordered</option>
+      <option value="received">Received</option>
+      <option value="paid">Paid</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  </div>
+  <table id="po-table">
+    <thead>
+      <tr><th data-sort="number">#</th><th data-sort="text">Supplier</th><th data-sort="text">Date</th><th data-sort="text">Status</th><th data-sort="number">Total</th><th data-sort="text">Created by</th></tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      <tr data-status="{{ o['status'] }}">
+        <td><a href="{{ url_for('purchase_orders.view_order', po_id=o['id']) }}">#{{ o['id'] }}</a></td>
+        <td>{{ o['supplier_name'] or '—' }}</td>
+        <td>{{ o['date'] }}</td>
+        <td>
+          {% if o['status'] == 'paid' %}<span class="badge" style="background:#dcfce7;color:#15803d;">Paid</span>
+          {% elif o['status'] == 'received' %}<span class="badge" style="background:#dbeafe;color:#1d4ed8;">Received</span>
+          {% elif o['status'] == 'ordered' %}<span class="badge" style="background:#fef3c7;color:#92400e;">Ordered</span>
+          {% elif o['status'] == 'cancelled' %}<span class="badge" style="background:#fee2e2;color:#b91c1c;">Cancelled</span>
+          {% else %}<span class="badge" style="background:#f3f4f6;color:#4b5563;">Draft</span>{% endif %}
+        </td>
+        <td>₦{{ '%.2f'|format(o['total']) }}</td>
+        <td>{{ o['created_by_name'] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>
+    enableTableTools('po-table', 'po-search');
+    document.getElementById('po-status-filter').addEventListener('change', function() {
+      var status = this.value;
+      document.querySelectorAll('#po-table tbody tr').forEach(function(row) {
+        row.style.display = (!status || row.getAttribute('data-status') === status) ? '' : 'none';
+      });
+    });
+  </script>
+  {% else %}
+    <p style="color: var(--muted);">No purchase orders yet.</p>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Reports{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+    <h2>Profit &amp; Loss</h2>
+    <div class="no-print">
+      <button type="button" onclick="window.print()" style="background:#374151; margin-top:0;">🖨️ Print</button>
+    </div>
+  </div>
+
+  <form method="get" class="no-print" style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap;">
+    <div>
+      <label for="from">From</label>
+      <input type="date" name="from" id="from" value="{{ date_from }}">
+    </div>
+    <div>
+      <label for="to">To</label>
+      <input type="date" name="to" id="to" value="{{ date_to }}">
+    </div>
+    <button type="submit">Update</button>
+  </form>
+
+  <div id="live-content">
+  <p style="color: var(--muted); margin-top:1rem;">{{ date_from }} to {{ date_to }}</p>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="label">Total Income</div>
+      <div class="value" style="color:#16a34a;">₦{{ '%.2f'|format(total_income) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Cost of Goods Sold</div>
+      <div class="value" style="color:#dc2626;">₦{{ '%.2f'|format(cogs) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Gross Profit</div>
+      <div class="value">₦{{ '%.2f'|format(gross_profit) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Total Expenses</div>
+      <div class="value" style="color:#dc2626;">₦{{ '%.2f'|format(total_expenses) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Damaged/Spoiled Loss</div>
+      <div class="value" style="color:#dc2626;">₦{{ '%.2f'|format(inventory_loss) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Net Profit</div>
+      <div class="value" style="color: {{ 'var(--text)' if net_profit >= 0 else '#dc2626' }};">₦{{ '%.2f'|format(net_profit) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Paid Invoices</div>
+      <div class="value">{{ paid_invoices }}</div>
+    </div>
+  </div>
+  <p style="color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem;">
+    Cost of Goods Sold is the cost-price value of everything sold through paid invoices in this period. Damaged/Spoiled Loss is the cost-price value of stock written off as damaged. Net Profit = Income − COGS − Expenses − Damaged/Spoiled Loss.
+  </p>
+
+  <h3 style="margin-top:2rem;">Income by category</h3>
+  {% if income_rows %}
+  <table>
+    <thead><tr><th>Category</th><th>Amount</th></tr></thead>
+    <tbody>
+      {% for r in income_rows %}
+      <tr><td>{{ r['name'] }}</td><td style="color:#16a34a;">₦{{ '%.2f'|format(r['total']) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: var(--muted);">No income in this period.</p>
+  {% endif %}
+
+  <h3 style="margin-top:1.5rem;">Expenses by category</h3>
+  {% if expense_rows %}
+  <table>
+    <thead><tr><th>Category</th><th>Amount</th></tr></thead>
+    <tbody>
+      {% for r in expense_rows %}
+      <tr><td>{{ r['name'] }}</td><td style="color:#dc2626;">₦{{ '%.2f'|format(r['total']) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: var(--muted);">No expenses in this period.</p>
+  {% endif %}
+
+  <h3 style="margin-top:1.5rem;">Export for accountant</h3>
+  <div class="no-print" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <a class="btn" style="background:#059669;" href="{{ url_for('reports.export_csv', kind='income', **{'from': date_from, 'to': date_to}) }}">Export Income CSV</a>
+    <a class="btn" style="background:#059669;" href="{{ url_for('reports.export_csv', kind='expenses', **{'from': date_from, 'to': date_to}) }}">Export Expenses CSV</a>
+    <a class="btn" style="background:#059669;" href="{{ url_for('reports.export_csv', kind='invoices', **{'from': date_from, 'to': date_to}) }}">Export Invoices CSV</a>
+  </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}{{ customer['name'] }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+      <h2>{{ customer['name'] }}</h2>
+      <p style="color: var(--muted); margin-top:-0.5rem;">
+        {% if customer['phone'] %}{{ customer['phone'] }}{% endif %}
+        {% if customer['email'] %} &middot; {{ customer['email'] }}{% endif %}
+      </p>
+      {% if customer['address'] %}<p style="color: var(--muted); font-size:0.85rem;">{{ customer['address'] }}</p>{% endif %}
+      {% if customer['notes'] %}<p style="font-size:0.85rem;"><strong>Notes:</strong> {{ customer['notes'] }}</p>{% endif %}
+    </div>
+    {% if g.user['role'] in ('owner', 'manager') %}
+    <div class="no-print">
+      <a class="btn" style="background:#6b7280;" href="{{ url_for('customers.edit_customer', customer_id=customer['id']) }}">Edit</a>
+      <form method="post" action="{{ url_for('customers.delete_customer', customer_id=customer['id']) }}" style="display:inline;" onsubmit="return confirm('Delete this customer?');">
+        <button type="submit" class="danger">Delete</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="stat-grid" style="margin-top:1.5rem;">
+    <div class="stat">
+      <div class="label">Total Spent (paid)</div>
+      <div class="value" style="color:#16a34a;">₦{{ '%.2f'|format(total_spent) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Outstanding (unpaid)</div>
+      <div class="value" style="color: {{ '#dc2626' if outstanding > 0 else 'var(--text)' }};">₦{{ '%.2f'|format(outstanding) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Total Orders</div>
+      <div class="value">{{ invoices|length }}</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:1.5rem;">Purchase history</h3>
+  {% if invoices %}
+  <table>
+    <thead>
+      <tr><th>#</th><th>Date</th><th>Status</th><th>Total</th></tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td><a href="{{ url_for('invoices.view_invoice', invoice_id=inv['id']) }}">#{{ inv['id'] }}</a></td>
+        <td>{{ inv['date'] }}</td>
+        <td>
+          {% if inv['status'] == 'paid' %}<span class="badge" style="background:#dcfce7;color:#15803d;">Paid</span>
+          {% elif inv['status'] == 'sent' %}<span class="badge" style="background:#dbeafe;color:#1d4ed8;">Sent</span>
+          {% elif inv['status'] == 'void' %}<span class="badge" style="background:#fee2e2;color:#b91c1c;">Void</span>
+          {% elif inv['status'] == 'cancelled' %}<span class="badge" style="background:#fef3c7;color:#92400e;">Cancelled</span>
+          {% else %}<span class="badge" style="background:#f3f4f6;color:#4b5563;">Draft</span>{% endif %}
+        </td>
+        <td>₦{{ '%.2f'|format(inv['total']) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: var(--muted);">No orders yet.</p>
+  {% endif %}
+
+  <a href="{{ url_for('customers.list_customers') }}" class="no-print" style="font-size:0.85rem; display:inline-block; margin-top:1rem;">Back to customers</a>
+</div>
+{% endblock %}

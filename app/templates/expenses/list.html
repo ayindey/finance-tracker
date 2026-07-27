@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Expenses{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div id="live-content">
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Expenses</h2>
+    <div class="no-print">
+      <button type="button" onclick="window.print()" style="background:#374151; margin-top:0;">🖨️ Print</button>
+      {% if g.user['role'] in ('owner', 'manager') %}
+      <a class="btn" style="margin-top:0;" href="{{ url_for('expenses.new_expense') }}">+ Log expense</a>
+      {% endif %}
+    </div>
+  </div>
+  <p style="color: var(--muted);">Total: <strong style="color: var(--text);">₦{{ '%.2f'|format(total) }}</strong></p>
+
+  {% if expenses %}
+  <input type="text" id="exp-search" placeholder="Search by category, note, or who logged it..." style="margin-top:0.5rem;">
+  <table id="exp-table">
+    <thead>
+      <tr><th data-sort="text">Date</th><th data-sort="text">Category</th><th data-sort="number">Amount</th><th data-sort="text">Note</th><th data-sort="text">Logged by</th><th data-sort="text">Logged at</th>{% if g.user['role'] in ('owner', 'manager') %}<th></th>{% endif %}</tr>
+    </thead>
+    <tbody>
+      {% for e in expenses %}
+      <tr>
+        <td>{{ e['date'] }}</td>
+        <td>{{ e['category_name'] or '—' }}</td>
+        <td style="color:#dc2626;">₦{{ '%.2f'|format(e['amount']) }}</td>
+        <td>{{ e['note'] or '—' }}</td>
+        <td>{{ e['created_by_name'] }}</td>
+        <td style="color: var(--muted); font-size:0.8rem;">{{ e['created_at'] }}</td>
+        {% if g.user['role'] in ('owner', 'manager') %}
+        <td style="white-space: nowrap;">
+          <a href="{{ url_for('expenses.edit_expense', expense_id=e['id']) }}" style="font-size:0.85rem;">Edit</a>
+          <form method="post" action="{{ url_for('expenses.delete_expense', expense_id=e['id']) }}" style="display:inline;" onsubmit="return confirm('Delete this expense?');">
+            <button type="submit" class="danger" style="margin-top:0; padding:0.2rem 0.6rem; font-size:0.8rem;">Delete</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>enableTableTools('exp-table', 'exp-search');</script>
+  {% else %}
+    <p style="color: var(--muted);">No expenses logged yet.</p>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}Purchase Order #{{ order['id'] }}{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div id="live-content">
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+      <h2>Purchase Order #{{ order['id'] }}</h2>
+      <p style="color: var(--muted); margin-top:-0.5rem;">{{ order['date'] }} &middot; created {{ order['created_at'] }}</p>
+    </div>
+    <div>
+      {% if order['status'] == 'paid' %}<span class="badge" style="background:#dcfce7;color:#15803d;">Paid</span>
+      {% elif order['status'] == 'received' %}<span class="badge" style="background:#dbeafe;color:#1d4ed8;">Received</span>
+      {% elif order['status'] == 'ordered' %}<span class="badge" style="background:#fef3c7;color:#92400e;">Ordered</span>
+      {% elif order['status'] == 'cancelled' %}<span class="badge" style="background:#fee2e2;color:#b91c1c;">Cancelled</span>
+      {% else %}<span class="badge" style="background:#f3f4f6;color:#4b5563;">Draft</span>{% endif %}
+    </div>
+  </div>
+
+  <p><strong>Supplier:</strong> {% if order['supplier_id_ref'] %}<a href="{{ url_for('suppliers.view_supplier', supplier_id=order['supplier_id_ref']) }}">{{ order['supplier_name'] }}</a>{% else %}{{ order['supplier_name'] or '—' }}{% endif %}</p>
+  {% if order['notes'] %}<p style="color: var(--muted);">{{ order['notes'] }}</p>{% endif %}
+
+  <table>
+    <thead><tr><th>Item</th><th>Qty</th><th>Unit cost</th><th>Line total</th></tr></thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>{{ item['item_name'] or item['description'] }}</td>
+        <td>{{ item['quantity'] }}</td>
+        <td>₦{{ '%.2f'|format(item['unit_cost']) }}</td>
+        <td>₦{{ '%.2f'|format(item['quantity'] * item['unit_cost']) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="text-align:right; font-weight:700; margin-top:1rem;">Total: ₦{{ '%.2f'|format(total) }}</p>
+
+  <div class="no-print" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:1.5rem; align-items:center;">
+    <button type="button" onclick="window.print()" style="background:#374151;">🖨️ Print</button>
+
+    {% if g.user['role'] in ('owner', 'manager') %}
+      {% if order['status'] == 'draft' %}
+      <form method="post" action="{{ url_for('purchase_orders.update_status', po_id=order['id']) }}" style="display:inline;">
+        <input type="hidden" name="status" value="ordered">
+        <button type="submit" style="background:#1d4ed8;">Mark as Ordered</button>
+      </form>
+      {% endif %}
+
+      {% if order['status'] in ('draft', 'ordered') %}
+      <form method="post" action="{{ url_for('purchase_orders.receive_order', po_id=order['id']) }}" onsubmit="return confirm('Mark this order received? Stock will be added and item cost prices updated.');" style="display:inline;">
+        <button type="submit" style="background:#15803d;">Mark as Received</button>
+      </form>
+      {% endif %}
+
+      {% if order['status'] == 'received' %}
+      <form method="post" action="{{ url_for('purchase_orders.pay_order', po_id=order['id']) }}" onsubmit="return confirm('Mark this order paid? This will record it as a business expense.');" style="display:inline;">
+        <button type="submit" style="background:#059669;">Mark as Paid</button>
+      </form>
+      {% endif %}
+
+      {% if order['status'] in ('draft', 'ordered') %}
+      <form method="post" action="{{ url_for('purchase_orders.update_status', po_id=order['id']) }}" onsubmit="return confirm('Cancel this purchase order?');" style="display:inline;">
+        <input type="hidden" name="status" value="cancelled">
+        <button type="submit" style="background:#f59e0b;">Cancel order</button>
+      </form>
+      {% endif %}
+
+      {% if order['status'] in ('draft', 'ordered', 'cancelled') %}
+      <form method="post" action="{{ url_for('purchase_orders.delete_order', po_id=order['id']) }}" onsubmit="return confirm('Delete this purchase order?');" style="display:inline;">
+        <button type="submit" class="danger">Delete</button>
+      </form>
+      {% endif %}
+    {% endif %}
+
+    <a href="{{ url_for('purchase_orders.list_orders') }}" style="margin-left:auto; font-size:0.85rem;">Back to purchase orders</a>
+  </div>
+
+  {% if order['status'] == 'received' %}
+  <p style="color: var(--muted); font-size: 0.8rem; margin-top: 1rem;">Received on {{ order['received_at'] }} — stock levels and cost prices were updated for every item on this order.</p>
+  {% elif order['status'] == 'paid' %}
+  <p style="color: var(--muted); font-size: 0.8rem; margin-top: 1rem;">Paid on {{ order['paid_at'] }} — ₦{{ '%.2f'|format(total) }} was recorded as a business expense.</p>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if supplier else 'Add' }} Supplier{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 420px;">
+  <h2>{{ 'Edit supplier' if supplier else 'Add a supplier' }}</h2>
+  <form method="post">
+    {% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
+    <label for="name">Name</label>
+    <input type="text" name="name" id="name" value="{{ supplier['name'] if supplier else '' }}" required>
+
+    <label for="phone">Phone</label>
+    <input type="text" name="phone" id="phone" value="{{ supplier['phone'] if supplier else '' }}">
+
+    <label for="email">Email</label>
+    <input type="email" name="email" id="email" value="{{ supplier['email'] if supplier else '' }}">
+
+    <label for="address">Address</label>
+    <input type="text" name="address" id="address" value="{{ supplier['address'] if supplier else '' }}">
+
+    <label for="notes">Notes</label>
+    <input type="text" name="notes" id="notes" value="{{ supplier['notes'] if supplier else '' }}" placeholder="e.g. Delivers Tuesdays, pays on 30-day terms">
+
+    <button type="submit">{{ 'Save changes' if supplier else 'Add supplier' }}</button>
+    <a class="btn" style="background: #6b7280;" href="{{ url_for('suppliers.list_suppliers') }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

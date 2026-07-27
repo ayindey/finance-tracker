@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Team members</h2>
+    <div>
+      <a class="btn" style="background:#6b7280;" href="{{ url_for('settings.edit_settings') }}">Settings</a>
+      <a class="btn" href="{{ url_for('auth.new_user') }}">+ Add user</a>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u['name'] }}</td>
+        <td>{{ u['email'] }}</td>
+        <td><span class="badge {{ u['role'] }}">{{ u['role'] }}</span></td>
+        <td>
+          {{ 'Active' if u['active'] else 'Deactivated' }}
+          {% if u['failed_attempts'] > 0 %}<span style="color:#dc2626; font-size:0.75rem;"> ({{ u['failed_attempts'] }} failed login{{ 's' if u['failed_attempts'] != 1 else '' }})</span>{% endif %}
+        </td>
+        <td style="white-space: nowrap;">
+          <a href="{{ url_for('auth.edit_user', user_id=u['id']) }}" style="font-size:0.85rem;">Edit</a>
+          {% if u['id'] != g.user['id'] %}
+          <form method="post" action="{{ url_for('auth.toggle_active', user_id=u['id']) }}" style="display:inline;">
+            <button type="submit" class="{{ 'danger' if u['active'] else '' }}" style="margin-top:0; padding:0.3rem 0.7rem; font-size:0.8rem;">
+              {{ 'Deactivate' if u['active'] else 'Activate' }}
+            </button>
+          </form>
+          <form method="post" action="{{ url_for('auth.reset_password', user_id=u['id']) }}" style="display:inline;" onsubmit="return confirm('Reset this password to the default?');">
+            <button type="submit" style="background:#f59e0b; margin-top:0; padding:0.3rem 0.7rem; font-size:0.8rem;">Reset password</button>
+          </form>
+          <form method="post" action="{{ url_for('auth.delete_user', user_id=u['id']) }}" style="display:inline;" onsubmit="return confirm('Permanently delete this user? This cannot be undone.');">
+            <button type="submit" class="danger" style="margin-top:0; padding:0.3rem 0.7rem; font-size:0.8rem;">Delete</button>
+          </form>
+          {% else %}
+          <span style="color: var(--muted); font-size:0.8rem;">(you)</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

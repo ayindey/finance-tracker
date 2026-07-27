@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 480px;">
+  <h2>Settings</h2>
+
+  <form method="post">
+    <h3>New user default password</h3>
+    <p style="color: var(--muted); font-size: 0.85rem;">New accounts you create will be given this password. Tell the new user to change it after their first login.</p>
+    <label for="default_password">Default password</label>
+    <input type="text" name="default_password" id="default_password" value="{{ default_password }}" minlength="6" required>
+
+    <h3 style="margin-top: 1.5rem;">KOT printer (in the store)</h3>
+    <p style="color: var(--muted); font-size: 0.85rem;">
+      Prints automatically the moment an order is placed, and again any time items are added or removed before the bill is settled — so whoever is packing always has the current list.
+    </p>
+    <label for="kot_printer_ip">KOT printer IP address</label>
+    <input type="text" name="kot_printer_ip" id="kot_printer_ip" value="{{ kot_printer_ip }}" placeholder="e.g. 192.168.1.50">
+    <label for="kot_printer_port">KOT printer port</label>
+    <input type="number" name="kot_printer_port" id="kot_printer_port" value="{{ kot_printer_port }}" placeholder="9100">
+
+    <h3 style="margin-top: 1.5rem;">Bill printer (at the cashier)</h3>
+    <p style="color: var(--muted); font-size: 0.85rem;">
+      Prints automatically the moment an invoice is marked paid.
+    </p>
+    <label for="bill_printer_ip">Bill printer IP address</label>
+    <input type="text" name="bill_printer_ip" id="bill_printer_ip" value="{{ bill_printer_ip }}" placeholder="e.g. 192.168.1.51">
+    <label for="bill_printer_port">Bill printer port</label>
+    <input type="number" name="bill_printer_port" id="bill_printer_port" value="{{ bill_printer_port }}" placeholder="9100">
+
+    <p style="color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem;">
+      If one printer is out of order, or you only have one printer, you can enter the same IP address in both sections above — both tickets will print to it.
+    </p>
+
+    <button type="submit">Save settings</button>
+  </form>
+</div>
+{% endblock %}

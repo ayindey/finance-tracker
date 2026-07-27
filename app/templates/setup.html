@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Setup{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 400px; margin: 3rem auto;">
+  <h2>Welcome — let's set up the owner account</h2>
+  <p style="color: var(--muted); font-size: 0.9rem;">This runs once. This account will have full access and can create other users.</p>
+  <form method="post">
+    <label for="name">Your name</label>
+    <input type="text" name="name" id="name" required>
+
+    <label for="email">Email</label>
+    <input type="email" name="email" id="email" required>
+
+    <label for="password">Password</label>
+    <input type="password" name="password" id="password" required minlength="6">
+
+    <button type="submit">Create owner account</button>
+  </form>
+</div>
+{% endblock %}

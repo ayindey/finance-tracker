@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}{{ supplier['name'] }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+      <h2>{{ supplier['name'] }}</h2>
+      <p style="color: var(--muted); margin-top:-0.5rem;">
+        {% if supplier['phone'] %}{{ supplier['phone'] }}{% endif %}
+        {% if supplier['email'] %} &middot; {{ supplier['email'] }}{% endif %}
+      </p>
+      {% if supplier['address'] %}<p style="color: var(--muted); font-size:0.85rem;">{{ supplier['address'] }}</p>{% endif %}
+      {% if supplier['notes'] %}<p style="font-size:0.85rem;"><strong>Notes:</strong> {{ supplier['notes'] }}</p>{% endif %}
+    </div>
+    {% if g.user['role'] in ('owner', 'manager') %}
+    <div class="no-print">
+      <a class="btn" style="background:#6b7280;" href="{{ url_for('suppliers.edit_supplier', supplier_id=supplier['id']) }}">Edit</a>
+      <form method="post" action="{{ url_for('suppliers.delete_supplier', supplier_id=supplier['id']) }}" style="display:inline;" onsubmit="return confirm('Delete this supplier?');">
+        <button type="submit" class="danger">Delete</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="stat-grid" style="margin-top:1.5rem;">
+    <div class="stat">
+      <div class="label">Total Paid</div>
+      <div class="value" style="color:#dc2626;">₦{{ '%.2f'|format(total_paid) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Owed (received/ordered, unpaid)</div>
+      <div class="value" style="color: {{ '#dc2626' if owed > 0 else 'var(--text)' }};">₦{{ '%.2f'|format(owed) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Total Orders</div>
+      <div class="value">{{ orders|length }}</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:1.5rem;">Purchase order history</h3>
+  {% if orders %}
+  <table>
+    <thead><tr><th>#</th><th>Date</th><th>Status</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for o in orders %}
+      <tr>
+        <td><a href="{{ url_for('purchase_orders.view_order', po_id=o['id']) }}">#{{ o['id'] }}</a></td>
+        <td>{{ o['date'] }}</td>
+        <td>
+          {% if o['status'] == 'paid' %}<span class="badge" style="background:#dcfce7;color:#15803d;">Paid</span>
+          {% elif o['status'] == 'received' %}<span class="badge" style="background:#dbeafe;color:#1d4ed8;">Received</span>
+          {% elif o['status'] == 'ordered' %}<span class="badge" style="background:#fef3c7;color:#92400e;">Ordered</span>
+          {% elif o['status'] == 'cancelled' %}<span class="badge" style="background:#fee2e2;color:#b91c1c;">Cancelled</span>
+          {% else %}<span class="badge" style="background:#f3f4f6;color:#4b5563;">Draft</span>{% endif %}
+        </td>
+        <td>₦{{ '%.2f'|format(o['total']) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: var(--muted);">No orders yet.</p>
+  {% endif %}
+
+  <a href="{{ url_for('suppliers.list_suppliers') }}" class="no-print" style="font-size:0.85rem; display:inline-block; margin-top:1rem;">Back to suppliers</a>
+</div>
+{% endblock %}

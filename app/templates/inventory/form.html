@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if item else 'Add' }} Item{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 500px;">
+  <h2>{{ 'Edit item' if item else 'Add inventory item' }}</h2>
+  <p style="color: var(--muted); font-size: 0.85rem;">
+    Looking to add a bundle/combo made of other items (like a gift basket)? <a href="{{ url_for('inventory.new_combo') }}">Use the combo builder instead</a>.
+  </p>
+  <form method="post">
+    <label for="name">Item name</label>
+    <input type="text" name="name" id="name" value="{{ item['name'] if item else '' }}" required>
+
+    <label for="sku">SKU (optional)</label>
+    <input type="text" name="sku" id="sku" value="{{ item['sku'] if item else '' }}" placeholder="e.g. RTL-001">
+
+    <label for="barcode">Barcode (optional)</label>
+    <input type="text" name="barcode" id="barcode" value="{{ item['barcode'] if item else '' }}" placeholder="Click here, then scan — or type it manually" autocomplete="off">
+
+    <label for="unit_label">Base unit</label>
+    <input type="text" name="unit_label" id="unit_label" value="{{ item['unit_label'] if item else 'piece' }}" placeholder="e.g. piece, kg, g, litre" required>
+    <p style="color: var(--muted); font-size: 0.8rem; margin-top:0.2rem;">
+      This is the unit "Stock quantity" and "Cost/Sell price" below are measured in. For a fixed cost per pack, work out the per-{{ item['unit_label'] if item else 'unit' }} cost (pack cost ÷ pieces per pack) and enter that here — Purchase Orders will do this automatically for you when receiving stock.
+    </p>
+
+    <label for="stock_qty">Stock quantity ({{ item['unit_label'] if item else 'piece' }})</label>
+    <input type="number" step="1" min="0" name="stock_qty" id="stock_qty" value="{{ item['stock_qty'] if item else 0 }}" required>
+
+    <label for="cost_price">Cost price per {{ item['unit_label'] if item else 'unit' }} (₦)</label>
+    <input type="number" step="0.01" min="0" name="cost_price" id="cost_price" value="{{ item['cost_price'] if item else '' }}" required>
+
+    <label for="sell_price">Sell price per {{ item['unit_label'] if item else 'unit' }} (₦)</label>
+    <input type="number" step="0.01" min="0" name="sell_price" id="sell_price" value="{{ item['sell_price'] if item else '' }}" required>
+
+    <label for="low_stock_threshold">Low stock alert threshold</label>
+    <input type="number" step="1" min="0" name="low_stock_threshold" id="low_stock_threshold" value="{{ item['low_stock_threshold'] if item else 5 }}">
+
+    <h3 style="margin-top: 1.5rem; font-size: 1rem;">Alternate selling units (optional)</h3>
+    <p style="color: var(--muted); font-size: 0.8rem;">
+      For items sold in more than one way — e.g. base unit is "piece" but you also sell by the Dozen, or base unit is "g" but you also sell 500g/1kg portions, or loose items like nuts sold "by the scoop." Each row converts to a number of base units.
+    </p>
+    <table id="units-table">
+      <thead>
+        <tr><th style="width:40%;">Unit name</th><th style="width:30%;">= how many {{ item['unit_label'] if item else 'base units' }}</th><th style="width:25%;">Sell price for this unit (₦)</th><th></th></tr>
+      </thead>
+      <tbody id="units-body"></tbody>
+    </table>
+    <button type="button" id="add-unit-btn" style="background:#6b7280;">+ Add unit</button>
+
+    <div style="margin-top: 1.5rem;">
+      <button type="submit">{{ 'Save changes' if item else 'Add item' }}</button>
+      <a class="btn" style="background: #6b7280;" href="{{ url_for('inventory.list_items') }}">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  const existingUnits = [
+    {% for u in item_units %}
+    { name: {{ u['unit_name']|tojson }}, factor: {{ u['conversion_factor'] }}, price: {{ u['sell_price'] if u['sell_price'] is not none else 'null' }} },
+    {% endfor %}
+  ];
+
+  const unitsBody = document.getElementById('units-body');
+
+  function addUnitRow(data) {
+    data = data || {};
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" name="unit_name[]" value="${data.name || ''}" placeholder="e.g. Dozen, 500g pack, Scoop" style="margin-top:0;"></td>
+      <td><input type="number" name="unit_factor[]" step="0.001" min="0.001" value="${data.factor || ''}" style="margin-top:0;"></td>
+      <td><input type="number" name="unit_price[]" step="0.01" min="0" value="${data.price != null ? data.price : ''}" style="margin-top:0;"></td>
+      <td><a href="#" class="remove-unit" style="color:#dc2626;">Remove</a></td>
+    `;
+    unitsBody.appendChild(tr);
+    tr.querySelector('.remove-unit').addEventListener('click', function(e) {
+      e.preventDefault();
+      tr.remove();
+    });
+  }
+
+  document.getElementById('add-unit-btn').addEventListener('click', () => addUnitRow());
+  existingUnits.forEach(addUnitRow);
+</script>
+{% endblock %}

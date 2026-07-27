@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+{% block title %}New Invoice{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 700px;">
+  <h2>New invoice</h2>
+  <form method="post" id="invoice-form">
+    <label for="customer_select">Existing customer (optional)</label>
+    <select id="customer_select">
+      <option value="">— Walk-in / type name below —</option>
+      {% for c in customers %}
+      <option value="{{ c['id'] }}" data-name="{{ c['name'] }}" data-contact="{{ c['phone'] or c['email'] or '' }}">{{ c['name'] }}{% if c['phone'] %} ({{ c['phone'] }}){% endif %}</option>
+      {% endfor %}
+    </select>
+    <a href="{{ url_for('customers.new_customer', return_to=request.path) }}" class="no-print" style="font-size:0.8rem;">+ Add a new customer instead</a>
+    <input type="hidden" name="customer_id" id="customer_id">
+
+    <label for="client_name">Client name</label>
+    <input type="text" name="client_name" id="client_name" required>
+
+    <label for="client_contact">Client contact (phone/email, optional)</label>
+    <input type="text" name="client_contact" id="client_contact">
+
+    <label for="date">Date</label>
+    <input type="date" name="date" id="date" required>
+
+    <h3 style="margin-top: 1.5rem;">Line items</h3>
+    <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.75rem; margin-bottom:0.75rem;">
+      <label for="barcode-scan">📷 Scan barcode</label>
+      <input type="text" id="barcode-scan" placeholder="Click here, then scan an item — it'll be added automatically" autocomplete="off" style="margin-top:0.25rem;">
+      <div id="scan-feedback" style="font-size:0.8rem; margin-top:0.25rem; display:none;"></div>
+    </div>
+    <table id="items-table">
+      <thead>
+        <tr>
+          <th style="width: 35%;">Item / description</th>
+          <th style="width: 15%;">Qty</th>
+          <th style="width: 20%;">Unit price (₦)</th>
+          <th style="width: 20%;">Line total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="items-body"></tbody>
+    </table>
+    <button type="button" id="add-row-btn" style="background:#6b7280;">+ Add line</button>
+
+    <p style="text-align:right; font-weight:700; margin-top:1rem;">Total: ₦<span id="grand-total">0.00</span></p>
+
+    <button type="submit">Create invoice</button>
+    <a class="btn" style="background: #6b7280;" href="{{ url_for('invoices.list_invoices') }}">Cancel</a>
+  </form>
+</div>
+
+<script>
+  const inventoryItems = [
+    {% for item in inventory_items %}
+    { id: {{ item['id'] }}, name: {{ item['name']|tojson }}, price: {{ item['sell_price'] }}, stock: {{ item['display_stock'] }} },
+    {% endfor %}
+  ];
+
+  const itemsBody = document.getElementById('items-body');
+  let rowCount = 0;
+
+  function addRow() {
+    rowCount++;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <select class="inv-select" style="margin-top:0;">
+          <option value="">— Custom line —</option>
+          ${inventoryItems.map(i => `<option value="${i.id}" data-price="${i.price}" data-name="${i.name}" data-stock="${i.stock}">${i.name} (${i.stock} in stock)</option>`).join('')}
+        </select>
+        <input type="text" name="description[]" placeholder="Description" style="margin-top:4px;">
+        <input type="hidden" name="inventory_item_id[]" value="">
+        <div class="stock-warning" style="color:#dc2626; font-size:0.75rem; margin-top:2px; display:none;"></div>
+      </td>
+      <td><input type="number" name="quantity[]" step="0.01" min="0.01" value="1" style="margin-top:0;"></td>
+      <td><input type="number" name="unit_price[]" step="0.01" min="0" value="0" style="margin-top:0;"></td>
+      <td class="line-total" style="padding-top:0.9rem;">₦0.00</td>
+      <td style="padding-top:0.9rem;"><a href="#" class="remove-row" style="color:#dc2626;">Remove</a></td>
+    `;
+    itemsBody.appendChild(tr);
+
+    const select = tr.querySelector('.inv-select');
+    const descInput = tr.querySelector('input[name="description[]"]');
+    const invIdInput = tr.querySelector('input[name="inventory_item_id[]"]');
+    const qtyInput = tr.querySelector('input[name="quantity[]"]');
+    const priceInput = tr.querySelector('input[name="unit_price[]"]');
+    const lineTotalCell = tr.querySelector('.line-total');
+    const stockWarning = tr.querySelector('.stock-warning');
+
+    function checkStock() {
+      if (!select.value) {
+        stockWarning.style.display = 'none';
+        return;
+      }
+      const opt = select.options[select.selectedIndex];
+      const stock = parseFloat(opt.dataset.stock);
+      const qty = parseFloat(qtyInput.value) || 0;
+      if (qty > stock) {
+        stockWarning.textContent = `Only ${stock} in stock — reduce quantity.`;
+        stockWarning.style.display = 'block';
+      } else {
+        stockWarning.style.display = 'none';
+      }
+    }
+
+    function recalc() {
+      const qty = parseFloat(qtyInput.value) || 0;
+      const price = parseFloat(priceInput.value) || 0;
+      const lineTotal = qty * price;
+      lineTotalCell.textContent = '₦' + lineTotal.toFixed(2);
+      checkStock();
+      recalcGrandTotal();
+    }
+
+    select.addEventListener('change', () => {
+      if (select.value) {
+        const opt = select.options[select.selectedIndex];
+        descInput.value = opt.dataset.name;
+        priceInput.value = opt.dataset.price;
+        invIdInput.value = select.value;
+      } else {
+        invIdInput.value = '';
+      }
+      recalc();
+    });
+
+    qtyInput.addEventListener('input', recalc);
+    priceInput.addEventListener('input', recalc);
+    tr.querySelector('.remove-row').addEventListener('click', (e) => {
+      e.preventDefault();
+      tr.remove();
+      recalcGrandTotal();
+    });
+  }
+
+  function recalcGrandTotal() {
+    let total = 0;
+    itemsBody.querySelectorAll('tr').forEach(tr => {
+      const qty = parseFloat(tr.querySelector('input[name="quantity[]"]').value) || 0;
+      const price = parseFloat(tr.querySelector('input[name="unit_price[]"]').value) || 0;
+      total += qty * price;
+    });
+    document.getElementById('grand-total').textContent = total.toFixed(2);
+  }
+
+  document.getElementById('add-row-btn').addEventListener('click', addRow);
+  addRow(); // start with one row
+
+  document.getElementById('customer_select').addEventListener('change', function() {
+    var opt = this.options[this.selectedIndex];
+    if (this.value) {
+      document.getElementById('client_name').value = opt.dataset.name;
+      document.getElementById('client_contact').value = opt.dataset.contact;
+      document.getElementById('customer_id').value = this.value;
+    } else {
+      document.getElementById('customer_id').value = '';
+    }
+  });
+
+  // Barcode scanning: USB/Bluetooth scanners act like a keyboard — they type the
+  // code into whatever's focused, then send Enter. So we just listen for Enter on
+  // this input and look the code up.
+  const scanInput = document.getElementById('barcode-scan');
+  const scanFeedback = document.getElementById('scan-feedback');
+
+  function showScanFeedback(message, isError) {
+    scanFeedback.textContent = message;
+    scanFeedback.style.color = isError ? '#dc2626' : '#16a34a';
+    scanFeedback.style.display = 'block';
+    setTimeout(() => { scanFeedback.style.display = 'none'; }, 3000);
+  }
+
+  scanInput.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const code = scanInput.value.trim();
+    scanInput.value = '';
+    if (!code) return;
+
+    fetch('/inventory/lookup-barcode?code=' + encodeURIComponent(code))
+      .then(r => r.json())
+      .then(data => {
+        if (!data.found) {
+          showScanFeedback('No item found for barcode "' + code + '".', true);
+          return;
+        }
+
+        // If this item is already in the list, just bump its quantity instead of
+        // adding a duplicate row — that's how a real checkout scan-flow works.
+        const existingRow = Array.from(itemsBody.querySelectorAll('tr')).find(tr => {
+          const idInput = tr.querySelector('input[name="inventory_item_id[]"]');
+          return idInput && idInput.value === String(data.id);
+        });
+
+        if (existingRow) {
+          const qtyInput = existingRow.querySelector('input[name="quantity[]"]');
+          qtyInput.value = (parseFloat(qtyInput.value) || 0) + 1;
+          qtyInput.dispatchEvent(new Event('input'));
+          showScanFeedback(`${data.name}: quantity increased.`, false);
+        } else {
+          addRow();
+          const newRow = itemsBody.lastElementChild;
+          const select = newRow.querySelector('.inv-select');
+          select.value = String(data.id);
+          select.dispatchEvent(new Event('change'));
+          showScanFeedback(`${data.name} added.`, false);
+        }
+      })
+      .catch(() => showScanFeedback('Could not look up that barcode — try again.', true));
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<div id="live-content">
+<div class="stat-grid">
+  <div class="stat">
+    <div class="label">Total Income</div>
+    <div class="value" style="color:#16a34a;">₦{{ '%.2f'|format(total_income) }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Total Expenses</div>
+    <div class="value" style="color:#dc2626;">₦{{ '%.2f'|format(total_expenses) }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Balance</div>
+    <div class="value">₦{{ '%.2f'|format(balance) }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Unpaid Invoices</div>
+    <div class="value">{{ unpaid_invoices }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Damaged/Spoiled Loss (this month)</div>
+    <div class="value" style="color:#dc2626;">₦{{ '%.2f'|format(inventory_loss_this_month) }}</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+  <h3>Low stock items</h3>
+  {% if low_stock %}
+    <table>
+      <thead><tr><th>Item</th><th>Stock</th><th>Threshold</th></tr></thead>
+      <tbody>
+        {% for item in low_stock %}
+        <tr><td>{{ item['name'] }}</td><td>{{ item['stock_qty'] }}</td><td>{{ item['low_stock_threshold'] }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p style="color: var(--muted);">Nothing low on stock right now.</p>
+  {% endif %}
+</div>
+</div>
+
+<div class="chart-row" style="margin-top: 1.5rem;">
+  <div class="card">
+    <h3>Income vs Expenses (last 6 months)</h3>
+    {% if trend_labels %}
+      <canvas id="trendChart" height="220"></canvas>
+    {% else %}
+      <p style="color: var(--muted);">Not enough data yet — log some income and expenses to see the trend.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Expense breakdown by category</h3>
+    {% if category_labels %}
+      <canvas id="categoryChart" height="220"></canvas>
+    {% else %}
+      <p style="color: var(--muted);">No expenses logged yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+  {% if trend_labels %}
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: {{ trend_labels|tojson }},
+      datasets: [
+        { label: 'Income', data: {{ trend_income|tojson }}, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.1)', tension: 0.3, fill: true },
+        { label: 'Expenses', data: {{ trend_expenses|tojson }}, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)', tension: 0.3, fill: true }
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+  });
+  {% endif %}
+
+  {% if category_labels %}
+  new Chart(document.getElementById('categoryChart'), {
+    type: 'doughnut',
+    data: {
+      labels: {{ category_labels|tojson }},
+      datasets: [{
+        data: {{ category_totals|tojson }},
+        backgroundColor: ['#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4']
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+  });
+  {% endif %}
+</script>
+
+<p style="color: var(--muted); font-size: 0.85rem; margin-top: 1rem;">
+  Charts update automatically as you log income, expenses, and invoices.
+</p>
+{% endblock %}

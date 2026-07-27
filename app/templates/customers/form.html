@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if customer else 'Add' }} Customer{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 420px;">
+  <h2>{{ 'Edit customer' if customer else 'Add a customer' }}</h2>
+  <form method="post">
+    {% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
+    <label for="name">Name</label>
+    <input type="text" name="name" id="name" value="{{ customer['name'] if customer else '' }}" required>
+
+    <label for="phone">Phone</label>
+    <input type="text" name="phone" id="phone" value="{{ customer['phone'] if customer else '' }}">
+
+    <label for="email">Email</label>
+    <input type="email" name="email" id="email" value="{{ customer['email'] if customer else '' }}">
+
+    <label for="address">Address</label>
+    <input type="text" name="address" id="address" value="{{ customer['address'] if customer else '' }}">
+
+    <label for="notes">Notes</label>
+    <input type="text" name="notes" id="notes" value="{{ customer['notes'] if customer else '' }}" placeholder="e.g. Prefers delivery, allergic to nuts, etc.">
+
+    <button type="submit">{{ 'Save changes' if customer else 'Add customer' }}</button>
+    <a class="btn" style="background: #6b7280;" href="{{ url_for('customers.list_customers') }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

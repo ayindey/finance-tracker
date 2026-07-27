@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Suppliers{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div id="live-content">
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Suppliers</h2>
+    <a class="btn no-print" href="{{ url_for('suppliers.new_supplier') }}">+ Add supplier</a>
+  </div>
+
+  {% if suppliers %}
+  <input type="text" id="supp-search" placeholder="Search by name, phone, or email..." style="margin-top:0.5rem;">
+  <table id="supp-table">
+    <thead>
+      <tr><th data-sort="text">Name</th><th data-sort="text">Phone</th><th data-sort="text">Email</th><th data-sort="number">Orders</th></tr>
+    </thead>
+    <tbody>
+      {% for s in suppliers %}
+      <tr>
+        <td><a href="{{ url_for('suppliers.view_supplier', supplier_id=s['id']) }}">{{ s['name'] }}</a></td>
+        <td>{{ s['phone'] or '—' }}</td>
+        <td>{{ s['email'] or '—' }}</td>
+        <td>{{ s['po_count'] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>enableTableTools('supp-table', 'supp-search');</script>
+  {% else %}
+    <p style="color: var(--muted);">No suppliers yet — add one here, or right from the purchase order form.</p>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

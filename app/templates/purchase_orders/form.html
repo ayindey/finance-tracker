@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% block title %}New Purchase Order{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 700px;">
+  <h2>New purchase order</h2>
+  <form method="post" id="po-form">
+    <label for="supplier_id">Supplier</label>
+    <select name="supplier_id" id="supplier_id" required>
+      <option value="">— Select a supplier —</option>
+      {% for s in suppliers %}
+      <option value="{{ s['id'] }}">{{ s['name'] }}</option>
+      {% endfor %}
+    </select>
+    {% if not suppliers %}
+    <p style="color: var(--muted); font-size: 0.85rem;">No suppliers yet — <a href="{{ url_for('suppliers.new_supplier', return_to=request.path) }}">add one first</a>.</p>
+    {% else %}
+    <a href="{{ url_for('suppliers.new_supplier', return_to=request.path) }}" class="no-print" style="font-size:0.8rem;">+ Add a new supplier instead</a>
+    {% endif %}
+
+    <label for="date">Date</label>
+    <input type="date" name="date" id="date" required>
+
+    <label for="notes">Notes (optional)</label>
+    <input type="text" name="notes" id="notes" placeholder="e.g. Delivery expected Friday">
+
+    <h3 style="margin-top: 1.5rem;">Items being ordered</h3>
+    <p style="color: var(--muted); font-size: 0.85rem;">Each line must be an existing inventory item — add it to Inventory first if it's brand new.</p>
+    <table id="items-table">
+      <thead>
+        <tr>
+          <th style="width: 40%;">Item</th>
+          <th style="width: 20%;">Qty</th>
+          <th style="width: 20%;">Unit cost (₦)</th>
+          <th style="width: 15%;">Line total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="items-body"></tbody>
+    </table>
+    <button type="button" id="add-row-btn" style="background:#6b7280;">+ Add line</button>
+
+    <p style="text-align:right; font-weight:700; margin-top:1rem;">Total: ₦<span id="grand-total">0.00</span></p>
+
+    <button type="submit">Create purchase order</button>
+    <a class="btn" style="background: #6b7280;" href="{{ url_for('purchase_orders.list_orders') }}">Cancel</a>
+  </form>
+</div>
+
+<script>
+  const inventoryItems = [
+    {% for item in inventory_items %}
+    { id: {{ item['id'] }}, name: {{ item['name']|tojson }}, cost: {{ item['cost_price'] }}, unit: {{ item['unit_label']|tojson }} },
+    {% endfor %}
+  ];
+  const itemUnitsByItem = {};
+  {% for u in item_units %}
+  (itemUnitsByItem[{{ u['inventory_item_id'] }}] = itemUnitsByItem[{{ u['inventory_item_id'] }}] || []).push(
+    { name: {{ u['unit_name']|tojson }}, factor: {{ u['conversion_factor'] }} }
+  );
+  {% endfor %}
+
+  const itemsBody = document.getElementById('items-body');
+
+  function addRow() {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <select class="inv-select" style="margin-top:0;" required>
+          <option value="">— Select item —</option>
+          ${inventoryItems.map(i => `<option value="${i.id}" data-cost="${i.cost}" data-name="${i.name}" data-unit="${i.unit}">${i.name}</option>`).join('')}
+        </select>
+        <input type="hidden" name="inventory_item_id[]" value="">
+        <input type="hidden" name="description[]" value="">
+        <div class="pack-helper no-print" style="display:none; margin-top:4px; padding:6px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:0.8rem;"></div>
+      </td>
+      <td><input type="number" name="quantity[]" step="0.01" min="0.01" value="1" style="margin-top:0;"> <span class="qty-unit-label" style="font-size:0.75rem; color:var(--muted);"></span></td>
+      <td><input type="number" name="unit_cost[]" step="0.01" min="0" value="0" style="margin-top:0;"></td>
+      <td class="line-total" style="padding-top:0.9rem;">₦0.00</td>
+      <td style="padding-top:0.9rem;"><a href="#" class="remove-row" style="color:#dc2626;">Remove</a></td>
+    `;
+    itemsBody.appendChild(tr);
+
+    const select = tr.querySelector('.inv-select');
+    const invIdInput = tr.querySelector('input[name="inventory_item_id[]"]');
+    const descInput = tr.querySelector('input[name="description[]"]');
+    const qtyInput = tr.querySelector('input[name="quantity[]"]');
+    const costInput = tr.querySelector('input[name="unit_cost[]"]');
+    const lineTotalCell = tr.querySelector('.line-total');
+    const packHelper = tr.querySelector('.pack-helper');
+    const qtyUnitLabel = tr.querySelector('.qty-unit-label');
+
+    function recalc() {
+      const qty = parseFloat(qtyInput.value) || 0;
+      const cost = parseFloat(costInput.value) || 0;
+      lineTotalCell.textContent = '₦' + (qty * cost).toFixed(2);
+      recalcGrandTotal();
+    }
+
+    function buildPackHelper(itemId, baseUnit) {
+      const units = itemUnitsByItem[itemId];
+      if (!units || !units.length) {
+        packHelper.style.display = 'none';
+        return;
+      }
+      packHelper.style.display = 'block';
+      packHelper.innerHTML = `
+        <strong>Buying in a different unit?</strong>
+        <select class="pack-unit-select" style="margin-top:2px;">
+          <option value="">Enter directly in ${baseUnit}</option>
+          ${units.map(u => `<option value="${u.factor}" data-name="${u.name}">${u.name} (= ${u.factor} ${baseUnit})</option>`).join('')}
+        </select>
+        <div style="display:flex; gap:6px; align-items:center; margin-top:4px;">
+          <span>How many:</span> <input type="number" class="pack-count" min="0.01" step="0.01" value="1" style="width:70px; margin-top:0;">
+          <span>Cost per unit:</span> <input type="number" class="pack-unit-cost" min="0" step="0.01" value="0" style="width:90px; margin-top:0;">
+          <button type="button" class="pack-apply-btn" style="margin-top:0; background:#059669;">Convert &amp; fill in</button>
+        </div>
+      `;
+      packHelper.querySelector('.pack-apply-btn').addEventListener('click', () => {
+        const factor = parseFloat(packHelper.querySelector('.pack-unit-select').value) || 1;
+        const count = parseFloat(packHelper.querySelector('.pack-count').value) || 0;
+        const unitCost = parseFloat(packHelper.querySelector('.pack-unit-cost').value) || 0;
+        qtyInput.value = (count * factor).toFixed(3).replace(/\.?0+$/, '');
+        costInput.value = factor > 0 ? (unitCost / factor).toFixed(4) : unitCost;
+        recalc();
+      });
+    }
+
+    select.addEventListener('change', () => {
+      if (select.value) {
+        const opt = select.options[select.selectedIndex];
+        invIdInput.value = select.value;
+        descInput.value = opt.dataset.name;
+        costInput.value = opt.dataset.cost;
+        qtyUnitLabel.textContent = opt.dataset.unit;
+        buildPackHelper(select.value, opt.dataset.unit);
+      } else {
+        invIdInput.value = '';
+        packHelper.style.display = 'none';
+        qtyUnitLabel.textContent = '';
+      }
+      recalc();
+    });
+
+    qtyInput.addEventListener('input', recalc);
+    costInput.addEventListener('input', recalc);
+    tr.querySelector('.remove-row').addEventListener('click', (e) => {
+      e.preventDefault();
+      tr.remove();
+      recalcGrandTotal();
+    });
+  }
+
+  function recalcGrandTotal() {
+    let total = 0;
+    itemsBody.querySelectorAll('tr').forEach(tr => {
+      const qty = parseFloat(tr.querySelector('input[name="quantity[]"]').value) || 0;
+      const cost = parseFloat(tr.querySelector('input[name="unit_cost[]"]').value) || 0;
+      total += qty * cost;
+    });
+    document.getElementById('grand-total').textContent = total.toFixed(2);
+  }
+
+  document.getElementById('add-row-btn').addEventListener('click', addRow);
+  addRow();
+</script>
+{% endblock %}

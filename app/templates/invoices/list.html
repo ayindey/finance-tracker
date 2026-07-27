@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Invoices{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div id="live-content">
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Invoices</h2>
+    <a class="btn" href="{{ url_for('invoices.new_invoice') }}">+ New invoice</a>
+  </div>
+
+  {% if invoices %}
+  <div style="display:flex; gap:0.5rem; margin-top:0.5rem; flex-wrap:wrap;">
+    <input type="text" id="inv-search" placeholder="Search by client, #, or created by..." style="margin-top:0; flex:1; min-width:200px;">
+    <select id="inv-status-filter" style="margin-top:0; width:auto;">
+      <option value="">All statuses</option>
+      <option value="draft">Draft</option>
+      <option value="sent">Sent</option>
+      <option value="paid">Paid</option>
+      <option value="void">Void</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  </div>
+  <table id="invoices-table">
+    <thead>
+      <tr><th data-sort="number">#</th><th data-sort="text">Client</th><th data-sort="text">Date</th><th data-sort="text">Status</th><th data-sort="number">Total</th><th data-sort="text">Created by</th></tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr data-status="{{ inv['status'] }}">
+        <td><a href="{{ url_for('invoices.view_invoice', invoice_id=inv['id']) }}">#{{ inv['id'] }}</a></td>
+        <td>{{ inv['client_name'] }}</td>
+        <td>{{ inv['date'] }}</td>
+        <td>
+          {% if inv['status'] == 'paid' %}
+            <span class="badge" style="background:#dcfce7;color:#15803d;">Paid</span>
+          {% elif inv['status'] == 'sent' %}
+            <span class="badge" style="background:#dbeafe;color:#1d4ed8;">Sent</span>
+          {% elif inv['status'] == 'void' %}
+            <span class="badge" style="background:#fee2e2;color:#b91c1c;">Void</span>
+          {% elif inv['status'] == 'cancelled' %}
+            <span class="badge" style="background:#fef3c7;color:#92400e;">Cancelled</span>
+          {% else %}
+            <span class="badge" style="background:#f3f4f6;color:#4b5563;">Draft</span>
+          {% endif %}
+        </td>
+        <td>₦{{ '%.2f'|format(inv['total']) }}</td>
+        <td>{{ inv['created_by_name'] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>
+    enableTableTools('invoices-table', 'inv-search');
+    document.getElementById('inv-status-filter').addEventListener('change', function() {
+      var status = this.value;
+      document.querySelectorAll('#invoices-table tbody tr').forEach(function(row) {
+        row.style.display = (!status || row.getAttribute('data-status') === status) ? '' : 'none';
+      });
+    });
+  </script>
+  {% else %}
+    <p style="color: var(--muted);">No invoices yet.</p>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

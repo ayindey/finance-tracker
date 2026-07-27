@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Add user{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 400px;">
+  <h2>Add a team member</h2>
+  <p style="color: var(--muted); font-size: 0.85rem;">
+    This account will be created with the default password (<strong>{{ default_password }}</strong>).
+    Tell them to change it after logging in — or you can change the default in <a href="{{ url_for('settings.edit_settings') }}">Settings</a>.
+  </p>
+  <form method="post">
+    <label for="name">Name</label>
+    <input type="text" name="name" id="name" required>
+
+    <label for="email">Email</label>
+    <input type="email" name="email" id="email" required>
+
+    <label for="role">Role</label>
+    <select name="role" id="role">
+      <option value="staff">Staff — take orders, settle bills, view inventory</option>
+      <option value="manager">Manager — also manages inventory, income/expenses, reports</option>
+      <option value="owner">Owner — full access</option>
+    </select>
+
+    <button type="submit">Create user</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Stock Log{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div id="live-content">
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Stock Log</h2>
+    <a class="btn no-print" style="background:#6b7280;" href="{{ url_for('inventory.list_items') }}">Back to inventory</a>
+  </div>
+  <p style="color: var(--muted); font-size: 0.85rem;">
+    Every stock change across all items — sales, restocks, damaged/spoiled goods, and corrections. Click "Edit" on a manually-logged entry (Restock, Damaged, Correction) to fix a mistake; sales and void-restores are locked since they're tied to a specific invoice.
+  </p>
+
+  {% if movements %}
+  <input type="text" id="mv-search" placeholder="Search by item, reason, or who logged it..." style="margin-top:0.5rem;">
+  <table id="mv-table">
+    <thead>
+      <tr><th data-sort="text">Date</th><th data-sort="text">Item</th><th data-sort="text">Type</th><th data-sort="number">Change</th><th data-sort="text">Reason</th><th data-sort="text">By</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for m in movements %}
+      <tr>
+        <td style="font-size:0.85rem; color: var(--muted);">{{ m['created_at'] }}</td>
+        <td>{{ m['item_name'] or '(deleted item)' }}</td>
+        <td>
+          {% if m['movement_type'] == 'sale' %}<span class="badge" style="background:#dbeafe;color:#1d4ed8;">Sale</span>
+          {% elif m['movement_type'] == 'damage' %}<span class="badge" style="background:#fee2e2;color:#b91c1c;">Damaged</span>
+          {% elif m['movement_type'] == 'restock' %}<span class="badge" style="background:#dcfce7;color:#15803d;">Restock</span>
+          {% elif m['movement_type'] == 'void_restore' %}<span class="badge" style="background:#f3f4f6;color:#4b5563;">Void restore</span>
+          {% elif m['movement_type'] == 'correction' %}<span class="badge" style="background:#fef3c7;color:#92400e;">Correction</span>
+          {% else %}<span class="badge" style="background:#f3f4f6;color:#4b5563;">Adjustment</span>{% endif %}
+        </td>
+        <td style="color: {{ '#16a34a' if m['change_qty'] > 0 else '#dc2626' }}; font-weight:600;">{{ '%+g'|format(m['change_qty']) }}</td>
+        <td>{{ m['reason'] or '—' }}</td>
+        <td>{{ m['created_by_name'] or '—' }}</td>
+        <td class="no-print" style="white-space:nowrap;">
+          {% if m['movement_type'] in ('restock', 'damage', 'correction', 'adjustment') and m['inventory_item_id'] %}
+          <a href="{{ url_for('inventory.edit_movement', item_id=m['inventory_item_id'], movement_id=m['id']) }}" style="font-size:0.8rem;">Edit</a>
+          <form method="post" action="{{ url_for('inventory.delete_movement', item_id=m['inventory_item_id'], movement_id=m['id']) }}" style="display:inline;" onsubmit="return confirm('Delete this stock entry? Stock will be adjusted back automatically.');">
+            <button type="submit" class="danger" style="margin-top:0; padding:0.15rem 0.5rem; font-size:0.75rem;">Delete</button>
+          </form>
+          {% else %}
+          <span style="color: var(--muted); font-size:0.75rem;" title="Generated automatically from an order — edit the invoice instead">locked</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>enableTableTools('mv-table', 'mv-search');</script>
+  {% else %}
+  <p style="color: var(--muted);">No stock movements recorded yet.</p>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

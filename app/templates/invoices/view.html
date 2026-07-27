@@ -1,0 +1,265 @@
+{% extends 'base.html' %}
+{% block title %}Invoice #{{ invoice['id'] }}{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div id="live-content">
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+      <h2>Invoice #{{ invoice['id'] }}</h2>
+      <p style="color: var(--muted); margin-top:-0.5rem;">{{ invoice['date'] }} &middot; created {{ invoice['created_at'] }}</p>
+    </div>
+    <div>
+      {% if invoice['status'] == 'paid' %}
+        <span class="badge" style="background:#dcfce7;color:#15803d;">Paid</span>
+      {% elif invoice['status'] == 'sent' %}
+        <span class="badge" style="background:#dbeafe;color:#1d4ed8;">Sent</span>
+      {% elif invoice['status'] == 'void' %}
+        <span class="badge" style="background:#fee2e2;color:#b91c1c;">Void</span>
+      {% elif invoice['status'] == 'cancelled' %}
+        <span class="badge" style="background:#fef3c7;color:#92400e;">Cancelled</span>
+      {% else %}
+        <span class="badge" style="background:#f3f4f6;color:#4b5563;">Draft</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <p><strong>Bill to:</strong> {% if customer %}<a href="{{ url_for('customers.view_customer', customer_id=customer['id']) }}">{{ invoice['client_name'] }}</a>{% else %}{{ invoice['client_name'] }}{% endif %}{% if invoice['client_contact'] %} — {{ invoice['client_contact'] }}{% endif %}</p>
+
+  <table>
+    <thead>
+      <tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Line total</th>{% if invoice['status'] in ('draft', 'sent') %}<th></th>{% endif %}</tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>{{ item['description'] }}</td>
+        <td>{{ item['quantity'] }}</td>
+        <td>₦{{ '%.2f'|format(item['unit_price']) }}</td>
+        <td>₦{{ '%.2f'|format(item['quantity'] * item['unit_price']) }}</td>
+        {% if invoice['status'] in ('draft', 'sent') %}
+        <td>
+          {% if items|length > 1 %}
+          <form method="post" action="{{ url_for('invoices.remove_item', invoice_id=invoice['id'], item_id=item['id']) }}" onsubmit="return confirm('Remove this item from the order?');" class="no-print" style="display:inline;">
+            <button type="submit" class="danger" style="margin-top:0; padding:0.15rem 0.5rem; font-size:0.75rem;">Remove</button>
+          </form>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if invoice['status'] in ('draft', 'sent') %}
+  <div class="no-print" style="background:#f9fafb; border:1px solid var(--border); border-radius:8px; padding:1rem; margin-top:1rem;">
+    <h3 style="margin-top:0; font-size:1rem;">Add item to this order</h3>
+
+    <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.5rem 0.75rem; margin-bottom:0.75rem;">
+      <label for="barcode-scan">📷 Scan barcode</label>
+      <input type="text" id="barcode-scan" placeholder="Click here, then scan — item is added instantly" autocomplete="off" style="margin-top:0.25rem;">
+      <div id="scan-feedback" style="font-size:0.8rem; margin-top:0.25rem; display:none;"></div>
+    </div>
+
+    <form method="post" action="{{ url_for('invoices.add_item', invoice_id=invoice['id']) }}" id="add-item-form" style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap;">
+      <div style="min-width:180px;">
+        <label for="inv_select">From inventory (optional)</label>
+        <select id="inv_select" style="margin-top:0;">
+          <option value="">— Custom line —</option>
+          {% for inv_item in inventory_items %}
+          <option value="{{ inv_item['id'] }}" data-price="{{ inv_item['sell_price'] }}" data-name="{{ inv_item['name'] }}" data-stock="{{ inv_item['display_stock'] }}">{{ inv_item['name'] }} ({{ inv_item['display_stock'] }} in stock)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <label for="description">Description</label>
+        <input type="text" name="description" id="description" required style="margin-top:0;">
+        <input type="hidden" name="inventory_item_id" id="inventory_item_id">
+      </div>
+      <div style="width:90px;">
+        <label for="quantity">Qty</label>
+        <input type="number" name="quantity" id="quantity" step="0.01" min="0.01" value="1" required style="margin-top:0;">
+      </div>
+      <div style="width:110px;">
+        <label for="unit_price">Unit price</label>
+        <input type="number" name="unit_price" id="unit_price" step="0.01" min="0" value="0" required style="margin-top:0;">
+      </div>
+      <button type="submit">Add</button>
+    </form>
+  </div>
+  <script>
+    document.getElementById('inv_select').addEventListener('change', function() {
+      var opt = this.options[this.selectedIndex];
+      if (this.value) {
+        document.getElementById('description').value = opt.dataset.name;
+        document.getElementById('unit_price').value = opt.dataset.price;
+        document.getElementById('inventory_item_id').value = this.value;
+      } else {
+        document.getElementById('inventory_item_id').value = '';
+      }
+    });
+
+    // Barcode scanning: the scanner types the code then sends Enter, same as a
+    // keyboard. On a valid match, fill the form and submit right away — this form
+    // adds one item per submit, so a scan here is a single fast add-and-reload.
+    (function() {
+      const scanInput = document.getElementById('barcode-scan');
+      const scanFeedback = document.getElementById('scan-feedback');
+
+      scanInput.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const code = scanInput.value.trim();
+        scanInput.value = '';
+        if (!code) return;
+
+        fetch('/inventory/lookup-barcode?code=' + encodeURIComponent(code))
+          .then(r => r.json())
+          .then(data => {
+            if (!data.found) {
+              scanFeedback.textContent = 'No item found for barcode "' + code + '".';
+              scanFeedback.style.color = '#dc2626';
+              scanFeedback.style.display = 'block';
+              return;
+            }
+            document.getElementById('inv_select').value = String(data.id);
+            document.getElementById('description').value = data.name;
+            document.getElementById('unit_price').value = data.price;
+            document.getElementById('inventory_item_id').value = data.id;
+            document.getElementById('quantity').value = 1;
+            document.getElementById('add-item-form').submit();
+          })
+          .catch(() => {
+            scanFeedback.textContent = 'Could not look up that barcode — try again.';
+            scanFeedback.style.color = '#dc2626';
+            scanFeedback.style.display = 'block';
+          });
+      });
+    })();
+  </script>
+  {% endif %}
+
+  <div style="text-align:right; margin-top:1rem;">
+    <p style="color: var(--muted); margin: 0.2rem 0;">Subtotal: ₦{{ '%.2f'|format(subtotal) }}</p>
+    {% if discount_amount > 0 %}
+      <p style="color:#dc2626; margin: 0.2rem 0;">
+        Discount{% if invoice['discount_type'] == 'percentage' %} ({{ invoice['discount_value']|round(2) }}%){% endif %}:
+        -₦{{ '%.2f'|format(discount_amount) }}
+        {% if discounter %}<span style="color: var(--muted); font-size:0.8rem;"> (by {{ discounter['name'] }})</span>{% endif %}
+      </p>
+    {% endif %}
+    <p style="font-weight:700; margin: 0.2rem 0;">Total: ₦{{ '%.2f'|format(total) }}</p>
+  </div>
+
+  {% if g.user['role'] in ('owner', 'manager') and invoice['status'] not in ('paid', 'void', 'cancelled') %}
+  <div class="card no-print" style="background:#f9fafb; margin-top:1rem;">
+    <h3 style="margin-top:0;">Apply discount</h3>
+    <form method="post" action="{{ url_for('invoices.set_discount', invoice_id=invoice['id']) }}" style="display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap;">
+      <div>
+        <label for="discount_type">Type</label>
+        <select name="discount_type" id="discount_type">
+          <option value="percentage" {% if invoice['discount_type'] == 'percentage' %}selected{% endif %}>Percentage (%)</option>
+          <option value="fixed" {% if invoice['discount_type'] == 'fixed' %}selected{% endif %}>Fixed amount (₦)</option>
+        </select>
+      </div>
+      <div>
+        <label for="discount_value">Value</label>
+        <input type="number" step="0.01" min="0" name="discount_value" id="discount_value" value="{{ invoice['discount_value'] or 0 }}" style="width:120px;">
+      </div>
+      <button type="submit">Apply</button>
+      {% if invoice['discount_type'] %}
+      <button type="submit" name="discount_type" value="none" formnovalidate style="background:#6b7280;">Remove discount</button>
+      {% endif %}
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="no-print" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:1.5rem; align-items:center;">
+    <button type="button" onclick="window.print()" style="background:#374151;" title="Opens your browser's print dialog — works with any printer set up on this computer, network or USB, even if the KOT printer is offline.">🖨️ Print (browser)</button>
+
+    {% if invoice['status'] not in ('paid', 'void', 'cancelled') %}
+    <form method="post" action="{{ url_for('invoices.reprint_kot', invoice_id=invoice['id']) }}" style="display:flex; gap:0.25rem; align-items:center;">
+      <select name="reason" style="margin-top:0; width:auto;">
+        <option value="Order updated">Order updated</option>
+        <option value="Technical issues">Technical issues</option>
+      </select>
+      <button type="submit" style="background:#0891b2;">🖨️ Update &amp; Print KOT</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('invoices.reprint_kot', invoice_id=invoice['id']) }}" style="display:flex; gap:0.25rem; align-items:center;">
+      <select name="reason" style="margin-top:0; width:auto;">
+        <option value="Technical issues">Technical issues</option>
+      </select>
+      <button type="submit" style="background:#0891b2;">🖨️ Reprint KOT</button>
+    </form>
+    {% endif %}
+
+    {% if invoice['status'] in ('paid', 'void') %}
+    <form method="post" action="{{ url_for('invoices.reprint_bill', invoice_id=invoice['id']) }}" style="display:flex; gap:0.25rem; align-items:center;">
+      <select name="reason" style="margin-top:0; width:auto;">
+        <option value="Technical issues">Technical issues</option>
+        <option value="Client Request">Client Request</option>
+      </select>
+      <button type="submit" style="background:#0891b2;">🖨️ Reprint Bill</button>
+    </form>
+    {% endif %}
+
+    {% if invoice['status'] not in ('paid', 'void', 'cancelled') %}
+      {% if invoice['status'] != 'sent' %}
+      <form method="post" action="{{ url_for('invoices.update_status', invoice_id=invoice['id']) }}" style="display:inline;">
+        <input type="hidden" name="status" value="sent">
+        <button type="submit" style="background:#1d4ed8;">Mark as Sent</button>
+      </form>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('invoices.update_status', invoice_id=invoice['id']) }}" style="display:inline;">
+        <input type="hidden" name="status" value="paid">
+        <button type="submit" style="background:#15803d;">Mark as Paid</button>
+      </form>
+    {% endif %}
+
+    {% if invoice['status'] == 'paid' and g.user['role'] in ('owner', 'manager') %}
+    <form method="post" action="{{ url_for('invoices.void_invoice', invoice_id=invoice['id']) }}" class="reason-form" style="display:inline;">
+      <input type="hidden" name="reason" class="reason-input">
+      <button type="submit" style="background:#b91c1c;" onclick="return promptReason(this, 'Why are you voiding this invoice? (stock will be restored, income removed)')">Void invoice</button>
+    </form>
+    {% endif %}
+
+    {% if invoice['status'] in ('draft', 'sent') and g.user['role'] in ('owner', 'manager') %}
+    <form method="post" action="{{ url_for('invoices.cancel_invoice', invoice_id=invoice['id']) }}" class="reason-form" style="display:inline;">
+      <input type="hidden" name="reason" class="reason-input">
+      <button type="submit" style="background:#f59e0b;" onclick="return promptReason(this, 'Why are you cancelling this invoice?')">Cancel invoice</button>
+    </form>
+    {% endif %}
+
+    {% if g.user['role'] in ('owner', 'manager') and invoice['status'] != 'paid' %}
+    <form method="post" action="{{ url_for('invoices.delete_invoice', invoice_id=invoice['id']) }}" onsubmit="return confirm('Delete this invoice?');" style="display:inline;">
+      <button type="submit" class="danger">Delete</button>
+    </form>
+    {% endif %}
+
+    <a href="{{ url_for('invoices.list_invoices') }}" style="margin-left:auto; font-size:0.85rem;">Back to invoices</a>
+  </div>
+
+  {% if invoice['status'] == 'paid' %}
+  <p style="color: var(--muted); font-size: 0.8rem; margin-top: 1rem;">When this invoice was marked paid: stock was deducted for any inventory-linked items, and the total was recorded as income automatically.</p>
+  {% elif invoice['status'] == 'void' %}
+  <p style="color: var(--muted); font-size: 0.8rem; margin-top: 1rem;">This invoice was voided: stock was restored and the associated income entry was removed.{% if invoice['void_reason'] %} Reason: <strong>{{ invoice['void_reason'] }}</strong>{% endif %}</p>
+  {% elif invoice['status'] == 'cancelled' %}
+  <p style="color: var(--muted); font-size: 0.8rem; margin-top: 1rem;">This invoice was cancelled before it was ever paid — no stock or income was affected.{% if invoice['void_reason'] %} Reason: <strong>{{ invoice['void_reason'] }}</strong>{% endif %}</p>
+  {% endif %}
+</div>
+</div>
+
+<script>
+  function promptReason(button, question) {
+    var reason = prompt(question);
+    if (!reason || !reason.trim()) {
+      return false;
+    }
+    var form = button.closest('.reason-form');
+    form.querySelector('.reason-input').value = reason.trim();
+    return true;
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if combo else 'New' }} Combo{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 560px;">
+  <h2>{{ 'Edit combo — ' + combo['name'] if combo else 'Build a combo / kit item' }}</h2>
+  <p style="color: var(--muted); font-size: 0.85rem;">
+    A combo (like a gift basket) is made of other inventory items. It has no stock of its own —
+    how many you can sell is worked out automatically from what's available in its components.
+    Selling one deducts the right quantity from each component automatically.
+  </p>
+
+  <form method="post">
+    <label for="name">Combo name</label>
+    <input type="text" name="name" id="name" value="{{ combo['name'] if combo else '' }}" required>
+
+    <label for="sell_price">Sell price for the whole combo (₦)</label>
+    <input type="number" name="sell_price" id="sell_price" step="0.01" min="0" value="{{ combo['sell_price'] if combo else '' }}" required>
+
+    <label for="low_stock_threshold">Low "assemblable" alert threshold</label>
+    <input type="number" name="low_stock_threshold" id="low_stock_threshold" step="1" min="0" value="{{ combo['low_stock_threshold'] if combo else 5 }}">
+
+    <h3 style="margin-top: 1.5rem; font-size: 1rem;">Components</h3>
+    <table id="components-table">
+      <thead><tr><th style="width:55%;">Item</th><th style="width:30%;">Qty needed per combo</th><th></th></tr></thead>
+      <tbody id="components-body"></tbody>
+    </table>
+    <button type="button" id="add-component-btn" style="background:#6b7280;">+ Add component</button>
+
+    <div style="margin-top: 1.5rem;">
+      <button type="submit">{{ 'Save changes' if combo else 'Create combo' }}</button>
+      <a class="btn" style="background: #6b7280;" href="{{ url_for('inventory.list_items') }}">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  const availableItems = [
+    {% for i in available_items %}
+    { id: {{ i['id'] }}, name: {{ i['name']|tojson }}, stock: {{ i['stock_qty'] }}, unit: {{ i['unit_label']|tojson }} },
+    {% endfor %}
+  ];
+  const existingComponents = [
+    {% for c in components %}
+    { id: {{ c['component_item_id'] }}, qty: {{ c['quantity_needed'] }} },
+    {% endfor %}
+  ];
+
+  const componentsBody = document.getElementById('components-body');
+
+  function addComponentRow(data) {
+    data = data || {};
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <select name="component_item_id[]" style="margin-top:0;">
+          <option value="">— Select item —</option>
+          ${availableItems.map(i => `<option value="${i.id}" ${String(i.id) === String(data.id) ? 'selected' : ''}>${i.name} (${i.stock} ${i.unit} in stock)</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="number" name="component_qty[]" step="0.01" min="0.01" value="${data.qty || 1}" style="margin-top:0;"></td>
+      <td><a href="#" class="remove-component" style="color:#dc2626;">Remove</a></td>
+    `;
+    componentsBody.appendChild(tr);
+    tr.querySelector('.remove-component').addEventListener('click', function(e) {
+      e.preventDefault();
+      tr.remove();
+    });
+  }
+
+  document.getElementById('add-component-btn').addEventListener('click', () => addComponentRow());
+  if (existingComponents.length) {
+    existingComponents.forEach(addComponentRow);
+  } else {
+    addComponentRow();
+  }
+</script>
+{% endblock %}

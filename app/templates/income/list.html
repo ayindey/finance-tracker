@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Income{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div id="live-content">
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Income</h2>
+    <div class="no-print">
+      <button type="button" onclick="window.print()" style="background:#374151; margin-top:0;">🖨️ Print</button>
+      {% if g.user['role'] in ('owner', 'manager') %}
+      <a class="btn" style="margin-top:0;" href="{{ url_for('income.new_income') }}">+ Log income</a>
+      {% endif %}
+    </div>
+  </div>
+  {% if g.user['role'] == 'staff' %}
+  <p style="color: var(--muted); font-size: 0.85rem;">Income from sales is added automatically when you mark an invoice as paid. Manual entries are handled by the owner or manager.</p>
+  {% endif %}
+  <p style="color: var(--muted);">Total: <strong style="color: var(--text);">₦{{ '%.2f'|format(total) }}</strong></p>
+
+  {% if income %}
+  <input type="text" id="income-search" placeholder="Search by category, note, or who logged it..." style="margin-top:0.5rem;">
+  <table id="income-table">
+    <thead>
+      <tr><th data-sort="text">Date</th><th data-sort="text">Category</th><th data-sort="number">Amount</th><th data-sort="text">Note</th><th data-sort="text">Logged by</th><th data-sort="text">Logged at</th>{% if g.user['role'] in ('owner', 'manager') %}<th></th>{% endif %}</tr>
+    </thead>
+    <tbody>
+      {% for i in income %}
+      <tr>
+        <td>{{ i['date'] }}</td>
+        <td>{{ i['category_name'] or '—' }}</td>
+        <td style="color:#16a34a;">₦{{ '%.2f'|format(i['amount']) }}</td>
+        <td>{{ i['note'] or '—' }}</td>
+        <td>{{ i['created_by_name'] }}</td>
+        <td style="color: var(--muted); font-size:0.8rem;">{{ i['created_at'] }}</td>
+        {% if g.user['role'] in ('owner', 'manager') %}
+        <td style="white-space: nowrap;">
+          <a href="{{ url_for('income.edit_income', income_id=i['id']) }}" style="font-size:0.85rem;">Edit</a>
+          <form method="post" action="{{ url_for('income.delete_income', income_id=i['id']) }}" style="display:inline;" onsubmit="return confirm('Delete this income entry?');">
+            <button type="submit" class="danger" style="margin-top:0; padding:0.2rem 0.6rem; font-size:0.8rem;">Delete</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>enableTableTools('income-table', 'income-search');</script>
+  {% else %}
+    <p style="color: var(--muted);">No income logged yet.</p>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

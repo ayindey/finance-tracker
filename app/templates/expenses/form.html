@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if expense else 'Log' }} Expense{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 420px;">
+  <h2>{{ 'Edit expense' if expense else 'Log an expense' }}</h2>
+  <form method="post">
+    <label for="amount">Amount (₦)</label>
+    <input type="number" step="0.01" min="0.01" name="amount" id="amount" value="{{ expense['amount'] if expense else '' }}" required>
+
+    <label for="category_id">Category</label>
+    <select name="category_id" id="category_id">
+      <option value="">— None —</option>
+      {% for c in categories %}
+        <option value="{{ c['id'] }}" {% if expense and expense['category_id'] == c['id'] %}selected{% endif %}>{{ c['name'] }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="date">Date</label>
+    <input type="date" name="date" id="date" value="{{ expense['date'] if expense else '' }}" required>
+
+    <label for="note">Note (optional)</label>
+    <input type="text" name="note" id="note" value="{{ expense['note'] if expense else '' }}" placeholder="e.g. June electricity bill">
+
+    <button type="submit">{{ 'Save changes' if expense else 'Log expense' }}</button>
+    <a class="btn" style="background: #6b7280;" href="{{ url_for('expenses.list_expenses') }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Inventory{% endblock %}
+{% block body_attrs %}data-live-poll="1"{% endblock %}
+{% block content %}
+<div id="live-content">
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Inventory</h2>
+    <div class="no-print">
+      {% if g.user['role'] in ('owner', 'manager') %}
+      <button type="button" onclick="window.print()" style="background:#374151; margin-top:0;">🖨️ Print</button>
+      <a class="btn" style="margin-top:0; background:#6b7280;" href="{{ url_for('inventory.new_combo') }}">+ Add combo</a>
+      <a class="btn" style="margin-top:0;" href="{{ url_for('inventory.new_item') }}">+ Add item</a>
+      {% endif %}
+    </div>
+  </div>
+  {% if g.user['role'] in ('owner', 'manager') %}
+  <p style="color: var(--muted);">Total stock value (at cost): <strong style="color: var(--text);">₦{{ '%.2f'|format(total_stock_value) }}</strong></p>
+  {% endif %}
+
+  {% if items %}
+  <input type="text" id="inv-search" placeholder="Search by name, SKU, or barcode..." style="margin-top:0.5rem;">
+  <table id="inv-table">
+    <thead>
+      <tr>
+        <th data-sort="text">Item</th><th data-sort="text">SKU</th>
+        {% if g.user['role'] in ('owner', 'manager') %}<th data-sort="text">Barcode</th>{% endif %}
+        <th data-sort="number">Stock</th>
+        {% if g.user['role'] in ('owner', 'manager') %}<th data-sort="number">Cost</th>{% endif %}
+        <th data-sort="number">Sell</th>
+        {% if g.user['role'] in ('owner', 'manager') %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr {% if item['display_stock'] <= item['low_stock_threshold'] %}style="background:#fef2f2;"{% endif %}>
+        {% if g.user['role'] in ('owner', 'manager') %}
+        <td>
+          {% if item['is_combo'] %}
+          <a href="{{ url_for('inventory.edit_combo', item_id=item['id']) }}">{{ item['name'] }}</a>
+          <span class="badge" style="background:#ede9fe;color:#6d28d9;">Combo</span>
+          {% else %}
+          <a href="{{ url_for('inventory.stock_history', item_id=item['id']) }}">{{ item['name'] }}</a>
+          {% endif %}
+          {% if item['display_stock'] <= item['low_stock_threshold'] %} <span class="badge" style="background:#fee2e2;color:#b91c1c;">Low stock</span>{% endif %}
+        </td>
+        {% else %}
+        <td>{{ item['name'] }}{% if item['is_combo'] %} <span class="badge" style="background:#ede9fe;color:#6d28d9;">Combo</span>{% endif %}{% if item['display_stock'] <= item['low_stock_threshold'] %} <span class="badge" style="background:#fee2e2;color:#b91c1c;">Low stock</span>{% endif %}</td>
+        {% endif %}
+        <td>{{ item['sku'] or '—' }}</td>
+        {% if g.user['role'] in ('owner', 'manager') %}<td style="font-family:monospace; font-size:0.85rem;">{{ item['barcode'] or '—' }}</td>{% endif %}
+        <td>{{ item['display_stock'] }} {{ item['unit_label'] }}{% if item['is_combo'] %} <span style="color:var(--muted); font-size:0.75rem;">(buildable)</span>{% endif %}</td>
+        {% if g.user['role'] in ('owner', 'manager') %}<td>{% if not item['is_combo'] %}₦{{ '%.2f'|format(item['cost_price']) }}{% else %}—{% endif %}</td>{% endif %}
+        <td>₦{{ '%.2f'|format(item['sell_price']) }}</td>
+        {% if g.user['role'] in ('owner', 'manager') %}
+        <td style="white-space: nowrap;">
+          {% if item['is_combo'] %}
+          <a href="{{ url_for('inventory.edit_combo', item_id=item['id']) }}" style="font-size:0.85rem;">Edit combo</a>
+          {% else %}
+          <a href="{{ url_for('inventory.adjust_stock', item_id=item['id']) }}" style="font-size:0.85rem;">Adjust stock</a>
+          <a href="{{ url_for('inventory.edit_item', item_id=item['id']) }}" style="font-size:0.85rem;">Edit</a>
+          {% endif %}
+          <form method="post" action="{{ url_for('inventory.delete_item', item_id=item['id']) }}" style="display:inline;" onsubmit="return confirm('Delete this item?');">
+            <button type="submit" class="danger" style="margin-top:0; padding:0.2rem 0.6rem; font-size:0.8rem;">Delete</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>enableTableTools('inv-table', 'inv-search');</script>
+  {% else %}
+    <p style="color: var(--muted);">No inventory items yet.</p>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

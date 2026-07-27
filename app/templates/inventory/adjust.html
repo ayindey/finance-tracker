@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Adjust Stock{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 420px;">
+  <h2>Adjust stock — {{ item['name'] }}</h2>
+  <p style="color: var(--muted);">Current stock: <strong style="color: var(--text);">{{ item['stock_qty'] }}</strong></p>
+
+  <form method="post">
+    <label for="direction">Direction</label>
+    <select name="direction" id="direction">
+      <option value="add">Add stock</option>
+      <option value="remove">Remove stock</option>
+    </select>
+
+    <label for="movement_type">Type</label>
+    <select name="movement_type" id="movement_type">
+      <option value="restock">Restock (new stock received)</option>
+      <option value="damage">Damaged / spoiled (counts as a loss in reports)</option>
+      <option value="correction">Stock count correction</option>
+    </select>
+    <p style="color: var(--muted); font-size: 0.8rem; margin-top: 0.2rem;">
+      "Damaged / spoiled" is the only type that affects Profit &amp; Loss — its cost value is recorded as a loss so your reports stay accurate.
+    </p>
+
+    <label for="amount">Quantity</label>
+    <input type="number" step="0.01" min="0.01" name="amount" id="amount" required>
+
+    <label for="reason">Reason / note</label>
+    <input type="text" name="reason" id="reason" placeholder="e.g. Restock from supplier, Damaged in transit" required>
+
+    <button type="submit">Save adjustment</button>
+    <a class="btn" style="background: #6b7280;" href="{{ url_for('inventory.stock_history', item_id=item['id']) }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}
