@@ -72,6 +72,19 @@ Both layouts live in `app/printing.py`, in two functions: `build_kot_ticket()` a
 ## Not included (out of scope for now)
 Payroll, multi-currency, and automated bank reconciliation are common in larger accounting suites but are overkill for a single retail shop — happy to add any of them if the business actually needs it.
 
+## Deploying (e.g. to Render)
+
+The app now initializes its own database automatically on first boot — no need to run `flask init-db` by hand on a server.
+
+**Important — persistent storage.** Most cloud platforms (Render included, on a standard Web Service) use an *ephemeral* filesystem: anything written to disk gets wiped on every restart or redeploy. Since this app's data lives in a single SQLite file, that means every order, user, and inventory item would vanish the next time the service restarts, unless you attach persistent storage:
+
+1. On Render: go to your service → **Disks** → **Add Disk**. Give it a mount path like `/var/data` and however much space you want (1 GB is enormous overkill for SQLite — this will last years).
+2. Add an environment variable: `DATABASE_PATH` = `/var/data/finance_tracker.sqlite` (matching whatever mount path you chose).
+3. Also set a `SECRET_KEY` environment variable to a long random string (this keeps user login sessions stable across restarts — without it, everyone gets logged out every time the service redeploys).
+4. Redeploy. The app will create the database fresh on that persistent disk the first time, and keep using the same file from then on.
+
+Without a persistent disk, this setup is fine for a quick demo/test (which is exactly what you were doing), but not for real day-to-day use.
+
 ## Project structure
 
 ```

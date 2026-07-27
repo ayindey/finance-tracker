@@ -5,18 +5,17 @@ from flask import Flask
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
-        SECRET_KEY=os.environ.get(
-            "SECRET_KEY",
-            "dev-change-this-in-production"
-        ),
-        DATABASE=os.path.join(app.instance_path, 'finance_tracker.sqlite'),
+        SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-change-this-in-production'),
+        DATABASE=os.environ.get('DATABASE_PATH', os.path.join(app.instance_path, 'finance_tracker.sqlite')),
     )
 
     if test_config is not None:
         app.config.update(test_config)
 
-    # make sure the instance folder exists (this is where the .sqlite file lives)
+    # make sure the database's directory exists — the default instance folder, or
+    # wherever DATABASE_PATH points (e.g. a Render persistent disk mount)
     os.makedirs(app.instance_path, exist_ok=True)
+    os.makedirs(os.path.dirname(app.config['DATABASE']), exist_ok=True)
 
     from . import db
     db.init_app(app)
@@ -57,7 +56,9 @@ def create_app(test_config=None):
     from . import purchase_orders
     app.register_blueprint(purchase_orders.bp)
 
-    # Initialize the database if it doesn't exist, otherwise migrate it.
+    # First boot on a fresh environment (e.g. a cloud deploy where nobody runs
+    # 'flask init-db' by hand): create the schema automatically. Otherwise, upgrade
+    # an existing database to the latest schema if needed.
     with app.app_context():
         if not os.path.exists(app.config['DATABASE']):
             db.init_db()
