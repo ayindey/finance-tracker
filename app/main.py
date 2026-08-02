@@ -1,5 +1,6 @@
 from flask import Blueprint, g, redirect, render_template, request, url_for, flash
 from werkzeug.security import generate_password_hash
+from datetime import datetime
 
 from .auth import login_required, role_required
 from .db import get_db
@@ -57,12 +58,14 @@ def dashboard():
     ).fetchone()['c']
 
     # Last 6 months of income vs expenses, for the trend chart.
+    # SUBSTR(date, 1, 7) pulls out 'YYYY-MM' from a 'YYYY-MM-DD' string — this works
+    # identically on SQLite and Postgres, unlike strftime() which is SQLite-only.
     monthly_income = db.execute(
-        '''SELECT strftime('%Y-%m', date) AS month, SUM(amount) AS total
+        '''SELECT SUBSTR(date, 1, 7) AS month, SUM(amount) AS total
            FROM income GROUP BY month ORDER BY month DESC LIMIT 6'''
     ).fetchall()
     monthly_expenses = db.execute(
-        '''SELECT strftime('%Y-%m', date) AS month, SUM(amount) AS total
+        '''SELECT SUBSTR(date, 1, 7) AS month, SUM(amount) AS total
            FROM expenses GROUP BY month ORDER BY month DESC LIMIT 6'''
     ).fetchall()
 
@@ -80,13 +83,16 @@ def dashboard():
            GROUP BY categories.id ORDER BY total DESC'''
     ).fetchall()
 
-    # Damaged/spoiled inventory loss this month.
+    # Damaged/spoiled inventory loss this month. Current month computed in Python
+    # (portable) rather than via a database-specific "now" function.
+    current_month = datetime.utcnow().strftime('%Y-%m')
     inventory_loss_row = db.execute(
         '''SELECT COALESCE(SUM(-stock_movements.change_qty * inventory_items.cost_price), 0) AS total
            FROM stock_movements
            JOIN inventory_items ON stock_movements.inventory_item_id = inventory_items.id
            WHERE stock_movements.movement_type = 'damage'
-             AND strftime('%Y-%m', stock_movements.created_at) = strftime('%Y-%m', 'now')'''
+             AND SUBSTR(stock_movements.created_at, 1, 7) = ?''',
+        (current_month,)
     ).fetchone()
     inventory_loss_this_month = inventory_loss_row['total']
 

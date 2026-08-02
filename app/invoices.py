@@ -3,7 +3,7 @@ from flask import (
 )
 
 from .auth import login_required, log_activity, role_required
-from .db import get_db
+from .db import get_db, now_str
 from . import printing
 from .inventory import get_available_stock, deduct_stock_for_sale, restore_stock_for_sale
 
@@ -225,8 +225,8 @@ def set_discount(invoice_id):
 
     if discount_type == 'none':
         db.execute(
-            'UPDATE invoices SET discount_type = NULL, discount_value = 0, discounted_by = ?, discounted_at = datetime("now") WHERE id = ?',
-            (g.user['id'], invoice_id)
+            'UPDATE invoices SET discount_type = NULL, discount_value = 0, discounted_by = ?, discounted_at = ? WHERE id = ?',
+            (g.user['id'], now_str(), invoice_id)
         )
         db.commit()
         log_activity(f"{g.user['name']} removed the discount on invoice #{invoice_id}")
@@ -248,8 +248,8 @@ def set_discount(invoice_id):
         return redirect(url_for('invoices.view_invoice', invoice_id=invoice_id))
 
     db.execute(
-        'UPDATE invoices SET discount_type = ?, discount_value = ?, discounted_by = ?, discounted_at = datetime("now") WHERE id = ?',
-        (discount_type, value, g.user['id'], invoice_id)
+        'UPDATE invoices SET discount_type = ?, discount_value = ?, discounted_by = ?, discounted_at = ? WHERE id = ?',
+        (discount_type, value, g.user['id'], now_str(), invoice_id)
     )
     db.commit()
     label = f"{value:g}%" if discount_type == 'percentage' else f"NGN {value:.2f}"

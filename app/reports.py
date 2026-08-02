@@ -57,13 +57,15 @@ def profit_and_loss():
     gross_profit = total_income - cogs
 
     # Damaged/spoiled goods: cost-price value of stock written off in this period.
-    # created_at is a full timestamp, so we compare against the date range using date().
+    # created_at is a full timestamp ('YYYY-MM-DD HH:MM:SS'); SUBSTR pulls out just the
+    # date part so it compares against date_from/date_to — works on SQLite and Postgres
+    # alike, unlike SQLite's date() function.
     damage_row = db.execute(
         '''SELECT COALESCE(SUM(-stock_movements.change_qty * inventory_items.cost_price), 0) AS total
            FROM stock_movements
            JOIN inventory_items ON stock_movements.inventory_item_id = inventory_items.id
            WHERE stock_movements.movement_type = 'damage'
-             AND date(stock_movements.created_at) BETWEEN ? AND ?''',
+             AND SUBSTR(stock_movements.created_at, 1, 10) BETWEEN ? AND ?''',
         (date_from, date_to)
     ).fetchone()
     inventory_loss = damage_row['total']

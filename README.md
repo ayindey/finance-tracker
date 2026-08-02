@@ -74,16 +74,36 @@ Payroll, multi-currency, and automated bank reconciliation are common in larger 
 
 ## Deploying (e.g. to Render)
 
-The app now initializes its own database automatically on first boot — no need to run `flask init-db` by hand on a server.
+The app initializes its own database automatically on first boot — no need to run `flask init-db` by hand on a server.
 
-**Important — persistent storage.** Most cloud platforms (Render included, on a standard Web Service) use an *ephemeral* filesystem: anything written to disk gets wiped on every restart or redeploy. Since this app's data lives in a single SQLite file, that means every order, user, and inventory item would vanish the next time the service restarts, unless you attach persistent storage:
+**Local development vs. production are automatically separated.** The app uses SQLite unless a `DATABASE_URL` environment variable is set, in which case it uses PostgreSQL instead — with zero other code changes needed. This means:
+- Running locally with no `DATABASE_URL` set → always uses your local SQLite file, exactly as before. It can never accidentally touch production data.
+- Render (or anywhere else) with `DATABASE_URL` set to a Postgres connection string → uses that Postgres database.
 
-1. On Render: go to your service → **Disks** → **Add Disk**. Give it a mount path like `/var/data` and however much space you want (1 GB is enormous overkill for SQLite — this will last years).
-2. Add an environment variable: `DATABASE_PATH` = `/var/data/finance_tracker.sqlite` (matching whatever mount path you chose).
-3. Also set a `SECRET_KEY` environment variable to a long random string (this keeps user login sessions stable across restarts — without it, everyone gets logged out every time the service redeploys).
-4. Redeploy. The app will create the database fresh on that persistent disk the first time, and keep using the same file from then on.
+### Option A: PostgreSQL (recommended for real use)
 
-Without a persistent disk, this setup is fine for a quick demo/test (which is exactly what you were doing), but not for real day-to-day use.
+1. On Render: create a new **PostgreSQL** instance (Dashboard → New → PostgreSQL). Free tier is fine to start.
+2. Copy its **Internal Database URL** from the Postgres instance's page.
+3. On your web service → **Environment** → add `DATABASE_URL` = that connection string.
+4. Also set `SECRET_KEY` to a long random string (keeps everyone logged in across restarts).
+5. Redeploy. The app creates all its tables automatically on first boot.
+
+This is the durable option — Postgres has its own persistent storage, so there's no risk of losing data on restart, and no separate disk to manage.
+
+### Option B: SQLite with a persistent disk (simpler, fine for a single small shop)
+
+Skip this if you're using Option A. Most cloud platforms (Render included, on a standard Web Service) use an *ephemeral* filesystem: anything written to disk gets wiped on every restart or redeploy. To keep using SQLite safely:
+
+1. On Render: go to your service → **Disks** → **Add Disk**. Give it a mount path like `/var/data`.
+2. Add an environment variable: `DATABASE_PATH` = `/var/data/finance_tracker.sqlite`.
+3. Set `SECRET_KEY` as above.
+4. Redeploy.
+
+### A note on printing
+
+The KOT/Bill auto-printing sends data directly from the server to your printer's IP address. That works when the app runs on the same local network as the printer (e.g. on your own computer). It **cannot** work once the app is hosted on Render or any other cloud platform — Render's servers have no network path into your shop's private local network, the same way your home WiFi router isn't reachable from the internet by IP. This isn't a bug to fix in the code; it's a fundamental limit of how private networks work.
+
+For a cloud-hosted deployment, printing needs a different approach — typically a small "print agent" program that runs on a computer inside your shop, which checks in with the cloud app over the internet and forwards print jobs to the local printer. That's a separate piece of work from what's built so far. In the meantime, the **"Print (browser)"** button on every page still works fine even when cloud-hosted, since it opens the browser's own print dialog on whichever computer you're using — it just won't be fully hands-free/automatic the way the KOT auto-print is when running locally.
 
 ## Project structure
 

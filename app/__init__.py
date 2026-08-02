@@ -12,13 +12,15 @@ def create_app(test_config=None):
     if test_config is not None:
         app.config.update(test_config)
 
-    # make sure the database's directory exists — the default instance folder, or
-    # wherever DATABASE_PATH points (e.g. a Render persistent disk mount)
-    os.makedirs(app.instance_path, exist_ok=True)
-    os.makedirs(os.path.dirname(app.config['DATABASE']), exist_ok=True)
-
     from . import db
     db.init_app(app)
+
+    # make sure the database's directory exists — only relevant for SQLite (the
+    # default instance folder, or wherever DATABASE_PATH points, e.g. a Render
+    # persistent disk mount). Postgres has no local file to prepare.
+    if not db.is_postgres():
+        os.makedirs(app.instance_path, exist_ok=True)
+        os.makedirs(os.path.dirname(app.config['DATABASE']), exist_ok=True)
 
     from . import auth
     app.register_blueprint(auth.bp)
@@ -60,7 +62,12 @@ def create_app(test_config=None):
     # 'flask init-db' by hand): create the schema automatically. Otherwise, upgrade
     # an existing database to the latest schema if needed.
     with app.app_context():
-        if not os.path.exists(app.config['DATABASE']):
+        if db.is_postgres():
+            # Every statement in schema_postgres.sql and migrate_db_postgres() is
+            # written as IF NOT EXISTS / ADD COLUMN IF NOT EXISTS, so it's always
+            # safe to just run init_db() on every boot — no need to check first.
+            db.init_db()
+        elif not os.path.exists(app.config['DATABASE']):
             db.init_db()
         else:
             db.migrate_db()

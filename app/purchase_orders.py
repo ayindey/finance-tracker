@@ -1,7 +1,7 @@
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
 from .auth import login_required, log_activity, role_required
-from .db import get_db
+from .db import get_db, now_str
 
 bp = Blueprint('purchase_orders', __name__, url_prefix='/purchase-orders')
 
@@ -184,8 +184,8 @@ def receive_order(po_id):
         )
 
     db.execute(
-        "UPDATE purchase_orders SET status = 'received', received_at = datetime('now') WHERE id = ?",
-        (po_id,)
+        "UPDATE purchase_orders SET status = 'received', received_at = ? WHERE id = ?",
+        (now_str(), po_id)
     )
     db.commit()
     log_activity(f"{g.user['name']} received purchase order #{po_id} — stock updated, cost prices refreshed")
@@ -223,8 +223,8 @@ def pay_order(po_id):
         (total, category_id, order['date'], f'PO #{po_id} - {supplier_name}', po_id, g.user['id'])
     )
     db.execute(
-        "UPDATE purchase_orders SET status = 'paid', paid_at = datetime('now') WHERE id = ?",
-        (po_id,)
+        "UPDATE purchase_orders SET status = 'paid', paid_at = ? WHERE id = ?",
+        (now_str(), po_id)
     )
     db.commit()
     log_activity(f"{g.user['name']} marked purchase order #{po_id} as paid (₦{total:.2f} recorded as an expense)")

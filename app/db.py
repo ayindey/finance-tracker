@@ -1,14 +1,108 @@
+import os
 import sqlite3
 import click
+from datetime import datetime
 from flask import current_app, g
+
+
+def now_str():
+    """A timestamp string in the same format both SQLite's datetime('now') and our
+    Postgres schema produce ('YYYY-MM-DD HH:MM:SS'). Computed in Python instead of a
+    database-specific function so the same code works unchanged on both engines."""
+    return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def is_postgres():
+    """True when a DATABASE_URL is configured (e.g. on Render) — otherwise we're
+    running against the local SQLite file, exactly as before. This is also what keeps
+    local development completely separate from a deployed Postgres database: nothing
+    else needs to change between the two environments."""
+    return bool(os.environ.get('DATABASE_URL'))
+
+
+class _PGRow(dict):
+    """Makes a psycopg2 RealDictRow behave like sqlite3.Row for our purposes —
+    both already support row['column'], so this is mostly just a marker/no-op,
+    kept in case any code ever needs a clean isinstance check later."""
+    pass
+
+
+class _PGCursorResult:
+    """Wraps a psycopg2 cursor so it looks like the sqlite3.Cursor the rest of the
+    app already expects: .fetchone() / .fetchall() returning dict-like rows, and a
+    .lastrowid property (which psycopg2 doesn't have natively — Postgres needs an
+    explicit RETURNING id clause instead, which the connection wrapper adds
+    automatically for INSERT statements)."""
+    def __init__(self, cursor, returning_row=None):
+        self._cursor = cursor
+        self._returning_row = returning_row
+
+    def fetchone(self):
+        if self._returning_row is not None:
+            row, self._returning_row = self._returning_row, None
+            return row
+        try:
+            return self._cursor.fetchone()
+        except Exception:
+            return None
+
+    def fetchall(self):
+        try:
+            return self._cursor.fetchall()
+        except Exception:
+            return []
+
+    @property
+    def lastrowid(self):
+        return self._returning_row['id'] if self._returning_row else None
+
+
+class _PGConnection:
+    """Wraps a psycopg2 connection so the rest of the app can keep calling
+    db.execute(sql_with_question_marks, params) exactly like it does for SQLite,
+    without any blueprint code needing to know which database engine is active."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        pg_sql = sql.replace('?', '%s')
+        cursor = self._conn.cursor()
+        is_insert = pg_sql.strip().upper().startswith('INSERT') and 'RETURNING' not in pg_sql.upper()
+        if is_insert:
+            pg_sql = pg_sql.rstrip().rstrip(';') + ' RETURNING id'
+        cursor.execute(pg_sql, params)
+        returning_row = cursor.fetchone() if is_insert else None
+        return _PGCursorResult(cursor, returning_row)
+
+    def executescript(self, sql):
+        cursor = self._conn.cursor()
+        cursor.execute(sql)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
 
 
 def get_db():
     """Open a new database connection if one doesn't already exist for this request."""
     if 'db' not in g:
-        g.db = sqlite3.connect(current_app.config['DATABASE'])
-        g.db.row_factory = sqlite3.Row  # lets us access columns by name, e.g. row['amount']
-        g.db.execute('PRAGMA foreign_keys = ON')
+        if is_postgres():
+            import psycopg2
+            import psycopg2.extras
+            raw_conn = psycopg2.connect(
+                os.environ['DATABASE_URL'],
+                cursor_factory=psycopg2.extras.RealDictCursor
+            )
+            g.db = _PGConnection(raw_conn)
+        else:
+            g.db = sqlite3.connect(current_app.config['DATABASE'])
+            g.db.row_factory = sqlite3.Row  # lets us access columns by name, e.g. row['amount']
+            g.db.execute('PRAGMA foreign_keys = ON')
     return g.db
 
 
@@ -20,10 +114,12 @@ def close_db(e=None):
 
 
 def init_db():
-    """Create tables from schema.sql, then seed default categories/settings. Safe to run multiple times."""
+    """Create tables, then seed default categories/settings. Safe to run multiple times."""
     db = get_db()
-    with current_app.open_resource('../schema.sql') as f:
+    schema_file = '../schema_postgres.sql' if is_postgres() else '../schema.sql'
+    with current_app.open_resource(schema_file) as f:
         db.executescript(f.read().decode('utf8'))
+    db.commit()
 
     existing = db.execute('SELECT COUNT(*) AS c FROM categories').fetchone()['c']
     if existing == 0:
@@ -129,11 +225,46 @@ def _rebuild_invoices_table(db):
 
 def migrate_db(db=None):
     """Upgrade an existing database in place to pick up schema changes added after
-    the database was first created. Safe to run repeatedly, and repairs damage from
-    an earlier (buggy) version of this migration — see the invoices_old handling below."""
+    the database was first created. Safe to run repeatedly."""
     if db is None:
         db = get_db()
 
+    if is_postgres():
+        migrate_db_postgres(db)
+        return
+
+    migrate_db_sqlite(db)
+
+
+def migrate_db_postgres(db):
+    """Postgres supports 'ADD COLUMN IF NOT EXISTS' natively, so schema upgrades are
+    far simpler than the SQLite path — no table rebuilds, no PRAGMA introspection,
+    and none of the legacy repair logic below (that only exists to fix damage from an
+    old SQLite-specific migration bug that can't happen here)."""
+    db.execute('''ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_type TEXT''')
+    db.execute('''ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_value REAL NOT NULL DEFAULT 0''')
+    db.execute('''ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discounted_by INTEGER''')
+    db.execute('''ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discounted_at TEXT''')
+    db.execute('''ALTER TABLE invoices ADD COLUMN IF NOT EXISTS void_reason TEXT''')
+    db.execute('''ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customer_id INTEGER''')
+
+    db.execute('''ALTER TABLE income ADD COLUMN IF NOT EXISTS invoice_id INTEGER''')
+
+    db.execute('''ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS movement_type TEXT NOT NULL DEFAULT 'adjustment' ''')
+
+    db.execute('''ALTER TABLE expenses ADD COLUMN IF NOT EXISTS purchase_order_id INTEGER''')
+
+    db.execute('''ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS barcode TEXT''')
+    db.execute('''ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS unit_label TEXT NOT NULL DEFAULT 'piece' ''')
+    db.execute('''ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS is_combo INTEGER NOT NULL DEFAULT 0''')
+    db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_barcode ON inventory_items(barcode) WHERE barcode IS NOT NULL''')
+
+    db.execute('''ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0''')
+
+    db.commit()
+
+
+def migrate_db_sqlite(db):
     tables = {row['name'] for row in db.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
     ).fetchall()}

@@ -18,7 +18,10 @@ def version():
         SELECT
             (SELECT COUNT(*) FROM invoices) AS inv_count,
             (SELECT COALESCE(MAX(id), 0) FROM invoices) AS inv_max_id,
-            (SELECT COALESCE(GROUP_CONCAT(status), '') FROM (SELECT status FROM invoices ORDER BY id DESC LIMIT 20)) AS inv_statuses,
+            (SELECT COALESCE(SUM(CASE status
+                WHEN 'draft' THEN 1 WHEN 'sent' THEN 2 WHEN 'paid' THEN 3
+                WHEN 'void' THEN 4 WHEN 'cancelled' THEN 5 ELSE 0 END), 0)
+             FROM (SELECT status FROM invoices ORDER BY id DESC LIMIT 20) AS recent) AS inv_status_sum,
             (SELECT COUNT(*) FROM inventory_items) AS item_count,
             (SELECT COALESCE(SUM(stock_qty), 0) FROM inventory_items) AS stock_total,
             (SELECT COUNT(*) FROM income) AS income_count,
