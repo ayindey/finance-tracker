@@ -67,11 +67,28 @@ class _PGConnection:
     def execute(self, sql, params=()):
         pg_sql = sql.replace('?', '%s')
         cursor = self._conn.cursor()
-        is_insert = pg_sql.strip().upper().startswith('INSERT') and 'RETURNING' not in pg_sql.upper()
+
+        is_insert = (
+            pg_sql.strip().upper().startswith("INSERT")
+            and "RETURNING" not in pg_sql.upper()
+        )
+
+        returning_row = None
+
         if is_insert:
-            pg_sql = pg_sql.rstrip().rstrip(';') + ' RETURNING id'
-        cursor.execute(pg_sql, params)
-        returning_row = cursor.fetchone() if is_insert else None
+            lower_sql = pg_sql.lower()
+
+            # Only tables that actually have an id column
+            if "into settings" not in lower_sql:
+                pg_sql = pg_sql.rstrip().rstrip(";") + " RETURNING id"
+
+            cursor.execute(pg_sql, params)
+
+            if "returning id" in pg_sql.lower():
+                returning_row = cursor.fetchone()
+        else:
+            cursor.execute(pg_sql, params)
+
         return _PGCursorResult(cursor, returning_row)
 
     def executescript(self, sql):
