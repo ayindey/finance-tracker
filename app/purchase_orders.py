@@ -15,14 +15,41 @@ def calculate_po_total(items):
 def list_orders():
     db = get_db()
     orders = db.execute(
-        '''SELECT purchase_orders.*, suppliers.name AS supplier_name, users.name AS created_by_name,
-                  COALESCE(SUM(purchase_order_items.quantity * purchase_order_items.unit_cost), 0) AS total
-           FROM purchase_orders
-           LEFT JOIN suppliers ON purchase_orders.supplier_id = suppliers.id
-           LEFT JOIN users ON purchase_orders.created_by = users.id
-           LEFT JOIN purchase_order_items ON purchase_order_items.purchase_order_id = purchase_orders.id
-           GROUP BY purchase_orders.id
-           ORDER BY purchase_orders.date DESC, purchase_orders.id DESC'''
+        '''
+        SELECT
+            purchase_orders.id,
+            purchase_orders.supplier_id,
+            purchase_orders.status,
+            purchase_orders.date,
+            purchase_orders.notes,
+            purchase_orders.received_at,
+            purchase_orders.paid_at,
+            purchase_orders.created_by,
+            purchase_orders.created_at,
+            suppliers.name AS supplier_name,
+            users.name AS created_by_name,
+            COALESCE(SUM(purchase_order_items.quantity * purchase_order_items.unit_cost),0) AS total
+        FROM purchase_orders
+        LEFT JOIN suppliers
+            ON purchase_orders.supplier_id = suppliers.id
+        LEFT JOIN users
+            ON purchase_orders.created_by = users.id
+        LEFT JOIN purchase_order_items
+            ON purchase_order_items.purchase_order_id = purchase_orders.id
+        GROUP BY
+            purchase_orders.id,
+            purchase_orders.supplier_id,
+            purchase_orders.status,
+            purchase_orders.date,
+            purchase_orders.notes,
+            purchase_orders.received_at,
+            purchase_orders.paid_at,
+            purchase_orders.created_by,
+            purchase_orders.created_at,
+            suppliers.name,
+            users.name
+        ORDER BY purchase_orders.date DESC, purchase_orders.id DESC
+        '''
     ).fetchall()
     return render_template('purchase_orders/list.html', orders=orders)
 

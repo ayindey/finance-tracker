@@ -60,13 +60,45 @@ def calculate_totals(invoice, items):
 def list_invoices():
     db = get_db()
     rows = db.execute(
-        '''SELECT invoices.*, users.name AS created_by_name,
-                  COALESCE(SUM(invoice_items.quantity * invoice_items.unit_price), 0) AS subtotal
-           FROM invoices
-           LEFT JOIN users ON invoices.created_by = users.id
-           LEFT JOIN invoice_items ON invoice_items.invoice_id = invoices.id
-           GROUP BY invoices.id
-           ORDER BY invoices.date DESC, invoices.id DESC'''
+        '''
+        SELECT
+            invoices.id,
+            invoices.client_name,
+            invoices.client_contact,
+            invoices.customer_id,
+            invoices.status,
+            invoices.date,
+            invoices.discount_type,
+            invoices.discount_value,
+            invoices.discounted_by,
+            invoices.discounted_at,
+            invoices.void_reason,
+            invoices.created_by,
+            invoices.created_at,
+            users.name AS created_by_name,
+            COALESCE(SUM(invoice_items.quantity * invoice_items.unit_price), 0) AS subtotal
+        FROM invoices
+        LEFT JOIN users
+            ON invoices.created_by = users.id
+        LEFT JOIN invoice_items
+            ON invoice_items.invoice_id = invoices.id
+        GROUP BY
+            invoices.id,
+            invoices.client_name,
+            invoices.client_contact,
+            invoices.customer_id,
+            invoices.status,
+            invoices.date,
+            invoices.discount_type,
+            invoices.discount_value,
+            invoices.discounted_by,
+            invoices.discounted_at,
+            invoices.void_reason,
+            invoices.created_by,
+            invoices.created_at,
+            users.name
+        ORDER BY invoices.date DESC, invoices.id DESC
+        '''
     ).fetchall()
 
     invoices_with_totals = []
