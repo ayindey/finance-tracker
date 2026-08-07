@@ -35,4 +35,27 @@
     <button type="submit">Save settings</button>
   </form>
 </div>
+
+<div class="card" style="max-width: 480px;">
+  <h2>Local print agent</h2>
+  <p style="color: var(--muted); font-size: 0.85rem;">
+    If this app is hosted in the cloud (Railway, Render, etc.), it can't reach your printer's IP directly — your printer sits on your shop's private network, and the cloud server has no path into it.
+    The <strong>local print agent</strong> is a small script you run on any computer inside your shop; it checks in with this app over the internet and forwards print jobs to your printer over your local network, where it can actually reach it.
+  </p>
+  <p style="color: var(--muted); font-size: 0.85rem;">
+    Download <code>local_print_agent/agent.py</code> from the project files, and set these two values in it (or as environment variables when running it):
+  </p>
+  <label>Server URL</label>
+  <input type="text" value="{{ request.url_root.rstrip('/') }}" readonly onclick="this.select()">
+
+  <label>API key</label>
+  <input type="text" value="{{ agent_api_key }}" readonly onclick="this.select()" style="font-family:monospace;">
+
+  <form method="post" action="{{ url_for('settings.regenerate_agent_key') }}" onsubmit="return confirm('Regenerate the key? You will need to update it in your local print agent too, or printing will stop working until you do.');" style="margin-top:0.75rem;">
+    <button type="submit" style="background:#dc2626;">Regenerate key</button>
+  </form>
+  <p style="color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem;">
+    Click a box above to select its value, then copy it. Only regenerate the key if you think it's been exposed — doing so will stop any running agent until you update it with the new key.
+  </p>
+</div>
 {% endblock %}

@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import secrets
 import click
 from datetime import datetime
 from flask import current_app, g
@@ -159,6 +160,7 @@ def seed_settings(db):
         'kot_printer_port': '9100',
         'bill_printer_ip': '',
         'bill_printer_port': '9100',
+        'agent_api_key': secrets.token_hex(24),
     }
     for key, value in defaults.items():
         exists = db.execute('SELECT 1 FROM settings WHERE key = ?', (key,)).fetchone()
@@ -277,6 +279,19 @@ def migrate_db_postgres(db):
     db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_barcode ON inventory_items(barcode) WHERE barcode IS NOT NULL''')
 
     db.execute('''ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0''')
+
+    db.execute('''CREATE TABLE IF NOT EXISTS print_jobs (
+        id SERIAL PRIMARY KEY,
+        kind TEXT NOT NULL CHECK(kind IN ('kot', 'bill')),
+        invoice_id INTEGER,
+        printer_ip TEXT NOT NULL,
+        printer_port TEXT NOT NULL,
+        content TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'done', 'failed')),
+        error TEXT,
+        created_at TEXT NOT NULL DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+        completed_at TEXT
+    )''')
 
     db.commit()
 
@@ -477,6 +492,19 @@ def migrate_db_sqlite(db):
         user_cols = {row['name'] for row in db.execute('PRAGMA table_info(users)').fetchall()}
         if 'failed_attempts' not in user_cols:
             db.execute('ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0')
+
+    db.execute('''CREATE TABLE IF NOT EXISTS print_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL CHECK(kind IN ('kot', 'bill')),
+        invoice_id INTEGER,
+        printer_ip TEXT NOT NULL,
+        printer_port TEXT NOT NULL,
+        content TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'done', 'failed')),
+        error TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+    )''')
 
     db.commit()
 

@@ -184,3 +184,16 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS print_jobs (
+    id SERIAL PRIMARY KEY,
+    kind TEXT NOT NULL CHECK(kind IN ('kot', 'bill')),
+    invoice_id INTEGER,
+    printer_ip TEXT NOT NULL,
+    printer_port TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'done', 'failed')),
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+    completed_at TEXT
+);

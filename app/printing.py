@@ -59,7 +59,37 @@ def send_to_printer(text_bytes, kind):
         return False, f'Could not reach the {kind.upper()} printer at {ip}:{port_num} ({e}).'
 
 
-def _line(left='', right='', width=42):
+def send_or_queue(text_bytes, kind, invoice_id=None):
+    """Tries printing directly first — this works when the app runs on the same
+    network as the printer (e.g. hosted on a computer in the shop). If that fails,
+    which is expected whenever the app is cloud-hosted (Render/Railway/etc. can't
+    reach a printer on your shop's private local network), the job is queued instead
+    so the local print agent — a small script that DOES run on your shop's network —
+    can pick it up and forward it. Returns (status, message) where status is one of
+    'printed', 'queued', or 'error' (nothing configured, or queueing itself failed)."""
+    ip, port = get_printer_config(kind)
+    if not ip:
+        return 'error', f'No {kind.upper()} printer IP configured in Settings.'
+
+    sent, msg = send_to_printer(text_bytes, kind)
+    if sent:
+        return 'printed', msg
+
+    try:
+        import base64
+        from .db import get_db
+        db = get_db()
+        db.execute(
+            'INSERT INTO print_jobs (kind, invoice_id, printer_ip, printer_port, content) VALUES (?, ?, ?, ?, ?)',
+            (kind, invoice_id, ip, port, base64.b64encode(text_bytes).decode('ascii'))
+        )
+        db.commit()
+        return 'queued', f'Printer not directly reachable ({msg}) — queued for the local print agent.'
+    except Exception as e:
+        return 'error', f'{msg} Also failed to queue the job: {e}'
+
+
+def _line(left='', right='', width=48):
     """Left-and-right-justified line, like receipt printers commonly render."""
     if not right:
         return left
@@ -82,26 +112,29 @@ def _row(cols):
     return ''.join(parts)
 
 
-def build_kot_ticket(invoice, items, hotel_name='Riviera Hotel', reprint_reason=None):
+def build_kot_ticket(invoice, items, retail_name='Maries Produce', reprint_reason=None):
     """Kitchen Order Ticket — printed the moment an order is punched, so kitchen/bar
     staff and whoever is packing the order can see what to prepare."""
-    W = 42
+    W = 48
     lines = []
-    lines.append(hotel_name.center(W))
-    lines.append('-' * W)
+    lines.append(retail_name.center(W))
     if reprint_reason:
         marker = '[Updated KOT]' if reprint_reason == 'Order updated' else f'[Reprint: {reprint_reason}]'
         lines.append(marker.center(W))
         lines.append('-' * W)
+    lines.append('')
+    lines.append('-' * W)
+    lines.append('')
     lines.append(f"Kot/Bot No: {invoice['id']}")
-    lines.append(f"Table : t1")
-    lines.append('-' * W)
-    lines.append(_line(f"Kot/Bot No: {invoice['id']}", f"Table :t1", W))
+    lines.append('')
     lines.append(f"Date: {invoice['date']}")
-    lines.append(f"Cover:1  Steward:")
+    lines.append('')
     lines.append('-' * W)
+    lines.append('')
     lines.append(_row([('No', 4, 'l'), ('Item Name', 24, 'l'), ('Qty', 6, 'r'), ('Status', 8, 'r')]))
+    lines.append('')
     lines.append('-' * W)
+    lines.append('')
     for i, item in enumerate(items, start=1):
         lines.append(_row([
             (str(i), 4, 'l'),
@@ -109,12 +142,15 @@ def build_kot_ticket(invoice, items, hotel_name='Riviera Hotel', reprint_reason=
             (f"{item['quantity']:g}", 6, 'r'),
             ('Add', 8, 'r'),
         ]))
+    lines.append('')
     lines.append('-' * W)
-    lines.append('Guest Name:')
-    lines.append('Room No:')
-    lines.append('Department:')
-    lines.append('NCType:')
+    lines.append('')
+    lines.append(f"Client Name: {invoice['client_name']}")
+    lines.append('')
+    lines.append(f"Client Info: {invoice['client_contact']}")
+    lines.append('')
     lines.append('-' * W)
+    lines.append('')
     lines.append('')
     lines.append('')
 
@@ -123,33 +159,31 @@ def build_kot_ticket(invoice, items, hotel_name='Riviera Hotel', reprint_reason=
 
 
 def build_bill_receipt(invoice, items, subtotal, discount_amount, total,
-                        hotel_name='Riviera Hotel', hotel_address='', outlet='', steward='',
+                        retail_name='Maries Produce', retail_address='', outlet='', steward='',
                         reprint_reason=None):
     """The payment bill — printed automatically once an invoice is marked paid."""
-    W = 42
+    W = 48
     lines = []
-    lines.append(hotel_name.center(W))
+    lines.append(retail_name.center(W))
+    if retail_address:
+        for addr_line in retail_address.split('\n'):
+            lines.append(addr_line.center(W))
     if reprint_reason:
         lines.append(f'[Reprint: {reprint_reason}]'.center(W))
-    if hotel_address:
-        for addr_line in hotel_address.split('\n'):
-            lines.append(addr_line.center(W))
     lines.append('')
-    lines.append('Bill Type: NC')
-    lines.append('NC Type: Entertainment')
-    lines.append('')
-    if outlet:
-        lines.append(f"Outlet: {outlet}".center(W))
+    lines.append('Bill Type: REGULAR')
     lines.append('-' * W)
-    lines.append(_line(f"DateTime: {invoice['created_at']}", f"Bill: {invoice['id']}", W))
-    lines.append(_line(f"Table: t1", f"Kot/Bot: {invoice['id']}", W))
-    if steward:
-        lines.append(_line(f"Steward: {steward}", f"Cover: 1", W))
     lines.append('')
-    lines.append('Room No:')
-    lines.append(f"Guest Name: {invoice['client_name']}")
+    lines.append(_line(f"Bill: {invoice['id']}", f"DateTime: {invoice['created_at']}", W))
+    lines.append(f"Kot/Bot: {invoice['id']}")
+    lines.append('')
+    lines.append(f"Client Name: {invoice['client_name']}")
+    lines.append(f"Client Info: {invoice['client_contact']}")
+    lines.append('')
     lines.append('-' * W)
+    lines.append('')
     lines.append(_row([('Menu Item', 18, 'l'), ('Qty', 6, 'r'), ('Rate', 8, 'r'), ('Amount', 10, 'r')]))
+    lines.append('')
     lines.append('-' * W)
     for item in items:
         amount = item['quantity'] * item['unit_price']
@@ -159,17 +193,23 @@ def build_bill_receipt(invoice, items, subtotal, discount_amount, total,
             (f"{item['unit_price']:.0f}", 8, 'r'),
             (f"{amount:.0f}", 10, 'r'),
         ]))
+    lines.append('')
     lines.append('-' * W)
+    lines.append('')
     lines.append(_row([('Total Amount', 32, 'l'), (f"{subtotal:.2f}", 10, 'r')]))
     if discount_amount > 0:
         pct = f" ({invoice['discount_value']:g}%)" if invoice['discount_type'] == 'percentage' else ''
         lines.append(_row([(f"Discount{pct}", 32, 'l'), (f"-{discount_amount:.2f}", 10, 'r')]))
+    lines.append('')
     lines.append(_row([('Round off', 32, 'l'), ('0.00', 10, 'r')]))
     lines.append('')
     lines.append(_row([('Net Amount NGN', 32, 'l'), (f"{total:.2f}", 10, 'r')]))
+    lines.append('')
     lines.append('-' * W)
     lines.append('')
     lines.append('Guest signature'.center(W))
+    lines.append('')
+    lines.append('')
     lines.append('')
     lines.append('')
 

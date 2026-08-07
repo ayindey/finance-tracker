@@ -99,11 +99,13 @@ Skip this if you're using Option A. Most cloud platforms (Render included, on a 
 3. Set `SECRET_KEY` as above.
 4. Redeploy.
 
-### A note on printing
+### Printing when the app is cloud-hosted
 
-The KOT/Bill auto-printing sends data directly from the server to your printer's IP address. That works when the app runs on the same local network as the printer (e.g. on your own computer). It **cannot** work once the app is hosted on Render or any other cloud platform — Render's servers have no network path into your shop's private local network, the same way your home WiFi router isn't reachable from the internet by IP. This isn't a bug to fix in the code; it's a fundamental limit of how private networks work.
+The KOT/Bill auto-printing sends data to your printer's IP address. When the app and printer are on the same local network (e.g. running on your own computer), that connection just works. When the app is hosted in the cloud (Railway, Render, etc.), it **cannot** reach a printer on your shop's private local network directly — the same way nothing on the internet can reach your home router by its `192.168.x.x` address. This isn't a bug; it's how private networks work.
 
-For a cloud-hosted deployment, printing needs a different approach — typically a small "print agent" program that runs on a computer inside your shop, which checks in with the cloud app over the internet and forwards print jobs to the local printer. That's a separate piece of work from what's built so far. In the meantime, the **"Print (browser)"** button on every page still works fine even when cloud-hosted, since it opens the browser's own print dialog on whichever computer you're using — it just won't be fully hands-free/automatic the way the KOT auto-print is when running locally.
+**This is what `local_print_agent/` solves.** It's a small standalone script (Python standard library only, no extra installs) that you run on any always-on computer inside your shop. It checks in with the cloud app over the internet, and whenever there's a print job waiting, forwards it to the printer over your shop's own network — which it *can* reach, since it's running right there. See `local_print_agent/README.md` for setup, and Settings → Local print agent in the app for the URL/API key it needs.
+
+If you don't run the agent, KOT/Bill jobs just sit queued (harmlessly) whenever the printer isn't directly reachable, and the **"Print (browser)"** button on every page still works regardless — it opens the browser's own print dialog on whichever computer you're using, agent or not.
 
 ## Project structure
 

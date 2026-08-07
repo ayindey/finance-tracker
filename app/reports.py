@@ -133,7 +133,8 @@ def export_csv(kind):
                LEFT JOIN users ON invoices.created_by = users.id
                LEFT JOIN invoice_items ON invoice_items.invoice_id = invoices.id
                WHERE invoices.date BETWEEN ? AND ?
-               GROUP BY invoices.id ORDER BY invoices.date''',
+               GROUP BY invoices.id, invoices.client_name, invoices.date, invoices.status, users.name
+               ORDER BY invoices.date''',
             (date_from, date_to)
         ).fetchall()
         for r in rows:

@@ -44,4 +44,14 @@ def edit_settings():
         kot_printer_port=get_setting('kot_printer_port', '9100'),
         bill_printer_ip=get_setting('bill_printer_ip', ''),
         bill_printer_port=get_setting('bill_printer_port', '9100'),
+        agent_api_key=get_setting('agent_api_key', ''),
     )
+
+
+@bp.route('/regenerate-agent-key', methods=('POST',))
+@role_required('owner')
+def regenerate_agent_key():
+    import secrets
+    set_setting('agent_api_key', secrets.token_hex(24))
+    flash('Print agent API key regenerated. Update the key in your local print agent\'s config too, or it will stop working.')
+    return redirect(url_for('settings.edit_settings'))

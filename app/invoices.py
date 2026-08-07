@@ -19,11 +19,15 @@ def _print_kot(db, invoice_id, note=None, reprint_reason=None):
     if not printing.is_printer_configured('kot'):
         return
     kot_bytes = printing.build_kot_ticket(invoice, items, reprint_reason=reprint_reason)
-    sent, msg = printing.send_to_printer(kot_bytes, 'kot')
-    if sent:
+    status, msg = printing.send_or_queue(kot_bytes, 'kot', invoice_id=invoice_id)
+    if status == 'printed':
         log_activity(f"KOT for invoice #{invoice_id} printed" + (f" ({note})" if note else ""))
+    elif status == 'queued':
+        log_activity(f"KOT for invoice #{invoice_id} queued for the local print agent" + (f" ({note})" if note else ""))
+        flash('Saved. The KOT printer is on your shop network, not reachable from here directly — '
+              'it will print as soon as your local print agent picks up the job.')
     else:
-        flash(f'Saved, but the KOT could not be printed automatically: {msg}')
+        flash(f'Saved, but the KOT could not be printed or queued: {msg}')
 
 
 def _print_bill(db, invoice_id, reprint_reason=None):
@@ -36,11 +40,15 @@ def _print_bill(db, invoice_id, reprint_reason=None):
         return
     subtotal, discount_amount, total = calculate_totals(invoice, items)
     bill_bytes = printing.build_bill_receipt(invoice, items, subtotal, discount_amount, total, reprint_reason=reprint_reason)
-    sent, msg = printing.send_to_printer(bill_bytes, 'bill')
-    if sent:
+    status, msg = printing.send_or_queue(bill_bytes, 'bill', invoice_id=invoice_id)
+    if status == 'printed':
         log_activity(f"Bill for invoice #{invoice_id} printed" + (f" (reprint: {reprint_reason})" if reprint_reason else ""))
+    elif status == 'queued':
+        log_activity(f"Bill for invoice #{invoice_id} queued for the local print agent" + (f" (reprint: {reprint_reason})" if reprint_reason else ""))
+        flash('Saved. The bill printer is on your shop network, not reachable from here directly — '
+              'it will print as soon as your local print agent picks up the job.')
     else:
-        flash(f'Saved, but the bill could not be printed automatically: {msg}')
+        flash(f'Saved, but the bill could not be printed or queued: {msg}')
 
 
 def calculate_totals(invoice, items):

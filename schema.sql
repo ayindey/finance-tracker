@@ -180,3 +180,16 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
     FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id),
     FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id)
 );
+
+CREATE TABLE IF NOT EXISTS print_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL CHECK(kind IN ('kot', 'bill')),
+    invoice_id INTEGER,
+    printer_ip TEXT NOT NULL,
+    printer_port TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'done', 'failed')),
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+);

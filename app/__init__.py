@@ -58,6 +58,9 @@ def create_app(test_config=None):
     from . import purchase_orders
     app.register_blueprint(purchase_orders.bp)
 
+    from . import print_agent
+    app.register_blueprint(print_agent.bp)
+
     # First boot on a fresh environment (e.g. a cloud deploy where nobody runs
     # 'flask init-db' by hand): create the schema automatically. Otherwise, upgrade
     # an existing database to the latest schema if needed.
